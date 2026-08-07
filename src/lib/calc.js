@@ -11,12 +11,24 @@ import {
 
 const sum = (rows) => rows.reduce((t, r) => t + Number(r.amount || 0), 0)
 
-/** Money IN, money OUT, money MOVED, and the Gap. */
+/**
+ * Money IN, money OUT, money MOVED, and the Gap.
+ *
+ * The Gap is IN − OUT, exactly as The Map defines cashflow. Moving money into
+ * Saving/Investing/Growth deliberately does NOT reduce it — that money was
+ * never spent, it was assigned. If moves shrank the Gap, a woman who saved
+ * well would watch her surplus fall toward zero, which reads as failure for
+ * doing the right thing.
+ *
+ * `unassigned` is the figure that answers "so how much of my surplus is still
+ * sitting there undecided" — the surplus she has not yet moved anywhere.
+ */
 export function totals(entries = []) {
   const moneyIn  = sum(entries.filter((e) => e.type === 'IN'))
   const moneyOut = sum(entries.filter((e) => e.type === 'OUT'))
   const moved    = sum(entries.filter((e) => e.type === 'MOVE'))
-  return { moneyIn, moneyOut, moved, gap: moneyIn - moneyOut }
+  const gap      = moneyIn - moneyOut
+  return { moneyIn, moneyOut, moved, gap, unassigned: Math.max(0, gap - moved) }
 }
 
 /** Total OUT per spending category. */
