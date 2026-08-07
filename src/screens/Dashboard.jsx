@@ -73,10 +73,26 @@ export default function Dashboard({
         </div>
 
         {t.moved > 0 && (
-          <p className="tiny muted" style={{ marginTop: 10, lineHeight: 1.55 }}>
-            You have also moved <b>{money(t.moved, cur)}</b> into your Saving, Investing and Growth
-            lines. Money moved to yourself is not counted as spending — it comes out of your Gap.
-          </p>
+          <div className="assigned" style={{ marginTop: 12 }}>
+            <div className="assigned-row">
+              <span className="small">Moved into your split</span>
+              <span className="small numeric" style={{ fontWeight: 700, color: 'var(--clay)' }}>
+                {money(t.moved, cur)}
+              </span>
+            </div>
+            {surplus && (
+              <div className="assigned-row">
+                <span className="small">Surplus still to assign</span>
+                <span className="small numeric" style={{ fontWeight: 700, color: '#2E7C5C' }}>
+                  {money(t.unassigned, cur)}
+                </span>
+              </div>
+            )}
+            <p className="tiny muted" style={{ marginTop: 9, lineHeight: 1.55 }}>
+              Moving money to yourself is not spending it, so your Gap above does not drop when
+              you do it. Your Gap is the room you have; this is what you have done with it.
+            </p>
+          </div>
         )}
 
         {/* ---- Quick add ---- */}

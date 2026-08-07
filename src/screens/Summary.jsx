@@ -62,18 +62,26 @@ export default function Summary({ woman, period, entries, onSave, onNewPeriod, o
             <span className="k">Total money out</span>
             <span className="v" style={{ color: 'var(--wine)' }}>{money(t.moneyOut, cur)}</span>
           </div>
-          {t.moved > 0 && (
-            <div className="ledger-row">
-              <span className="k">Moved into your split</span>
-              <span className="v" style={{ color: 'var(--clay)' }}>{money(t.moved, cur)}</span>
-            </div>
-          )}
           <div className="ledger-row total">
             <span className="k">{surplus ? 'Your Gap — surplus' : 'Your Gap — shortfall'}</span>
             <span className="v" style={{ color: surplus ? '#2E7C5C' : 'var(--clay)' }}>
               {surplus ? '+' : '−'}{money(Math.abs(t.gap), cur)}
             </span>
           </div>
+          {/* Below the total on purpose — moves are what she did WITH the Gap,
+              not part of the sum that produced it. */}
+          {t.moved > 0 && (
+            <div className="ledger-row">
+              <span className="k">Of that, moved into your split</span>
+              <span className="v" style={{ color: 'var(--clay)' }}>{money(t.moved, cur)}</span>
+            </div>
+          )}
+          {t.moved > 0 && surplus && (
+            <div className="ledger-row">
+              <span className="k">Surplus left unassigned</span>
+              <span className="v" style={{ color: 'var(--text-soft)' }}>{money(t.unassigned, cur)}</span>
+            </div>
+          )}
         </div>
 
         <p className="small muted" style={{ marginTop: 12, lineHeight: 1.7 }}>
