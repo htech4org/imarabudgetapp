@@ -308,6 +308,17 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
 .tile-in  .amount { color: var(--forest); }
 .tile-out .amount { color: var(--wine); }
 
+/* What she has done with the surplus */
+.assigned {
+  background: var(--surface); border: 1px solid var(--line-soft);
+  border-radius: var(--r); padding: 14px 16px; box-shadow: var(--shadow);
+}
+.assigned-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 5px 0;
+}
+.assigned-row + .assigned-row { border-top: 1px dashed var(--line); margin-top: 3px; padding-top: 8px; }
+
 /* Quick add */
 .quick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .quick-btn {
