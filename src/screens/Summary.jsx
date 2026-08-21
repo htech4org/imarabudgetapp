@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ARCHETYPES } from '../lib/constants'
+import { ARCHETYPES, splitOf } from '../lib/constants'
 import { totals, biggestLeak, splitPerformance, periodComplete, daysBetween } from '../lib/calc'
 import { money, pct, shortDate } from '../lib/format'
 
@@ -15,7 +15,9 @@ export default function Summary({ woman, period, entries, onSave, onNewPeriod, o
 
   const t = totals(entries)
   const leak = biggestLeak(entries)
-  const perf = splitPerformance(entries)
+  // A month that has closed carries the percentages it ran under; a live one
+  // follows her current settings.
+  const perf = splitPerformance(entries, closed ? splitOf(period) : splitOf(woman))
   const arch = ARCHETYPES[woman.archetype]
   const span = daysBetween(period.start_date, period.end_date) + 1
   const daysLogged = new Set(entries.map((e) => e.entry_date)).size
@@ -117,7 +119,7 @@ export default function Summary({ woman, period, entries, onSave, onNewPeriod, o
                   <div className="row-between" key={l.key} style={{ padding: '9px 0', borderBottom: '1px solid var(--line-soft)' }}>
                     <span className="small">
                       {l.label}
-                      <span className="split-pct">{Math.round(l.pct * 100)}%</span>
+                      <span className="split-pct">{l.pct}%</span>
                     </span>
                     <span className="small numeric muted">
                       <b style={{ color: 'var(--text)' }}>{money(l.actual, cur)}</b> / {money(l.target, cur)}
