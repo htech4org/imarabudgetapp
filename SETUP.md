@@ -172,6 +172,32 @@ Do this yourself before sending the link to anyone.
 
 ---
 
+## Updating a tracker that is already live
+
+New features arrive as a numbered migration file in `supabase/`. Run each one
+once, in order, in **SQL Editor → New query**. They are written to be safe on a
+live database — nothing is deleted, and running one twice does no harm.
+
+**Migration 002 — leaderboards, month history, custom split percentages.**
+Open `supabase/migration-002-leaderboards-history-custom-split.sql`, paste the
+whole file, click **Run**. It will:
+
+- give every woman the standard 10/10/10/10/60 split, which she can now change
+  herself from her dashboard
+- add the history table, and backfill a record for every month that has
+  **already** closed, so nobody's past is missing
+- add the two leaderboard functions
+
+Because those backfilled months closed before percentages existed, they are
+recorded as having run on whatever split that woman is on today. Every month
+that closes from now on captures its real percentages at the moment it closes.
+
+Deploy the app code at the same time — the new screens expect these functions
+to exist. Order does not matter much, but running the SQL first avoids a minute
+where the dashboard asks for a leaderboard that is not there yet.
+
+---
+
 ## Trying it before you build anything (demo mode)
 
 If you just want to see and click the app — to show it in a session, or to
