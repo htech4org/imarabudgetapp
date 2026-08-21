@@ -14,10 +14,12 @@ import { money } from '../lib/format'
  *     own warmer panel, show what is still owed to that line, and carry the
  *     button that logs the move.
  */
-export default function SplitPanel({ entries, currency, focusOn, onMove }) {
-  const perf = splitPerformance(entries)
+export default function SplitPanel({ entries, currency, focusOn, onMove, split, onEditSplit }) {
+  const perf = splitPerformance(entries, split)
   const spend = perf.lines.filter((l) => l.kind === 'spend')
   const build = perf.lines.filter((l) => l.kind === 'build')
+  const spendPct = spend.reduce((t, l) => t + l.pct, 0)
+  const buildPct = build.reduce((t, l) => t + l.pct, 0)
 
   if (perf.moneyIn <= 0) {
     return (
@@ -35,7 +37,7 @@ export default function SplitPanel({ entries, currency, focusOn, onMove }) {
       <div className="split-group split-spend">
         <div className="split-group-head">
           <span className="eyebrow">Money you spend</span>
-          <span className="tiny faint">70% of what comes in</span>
+          <span className="tiny faint">{spendPct}% of what comes in</span>
         </div>
         <p className="split-group-note">Measured straight from what you have logged going out.</p>
         {spend.map((line) => (
@@ -46,7 +48,7 @@ export default function SplitPanel({ entries, currency, focusOn, onMove }) {
       <div className="split-group split-build">
         <div className="split-group-head">
           <span className="eyebrow" style={{ color: 'var(--maroon-900)' }}>Money you build</span>
-          <span className="tiny" style={{ color: 'var(--maroon-700)' }}>30% of what comes in</span>
+          <span className="tiny" style={{ color: 'var(--maroon-700)' }}>{buildPct}% of what comes in</span>
         </div>
         <p className="split-group-note">
           These are not expenses, so they will never show up in your spending. This is money you
@@ -62,6 +64,12 @@ export default function SplitPanel({ entries, currency, focusOn, onMove }) {
           />
         ))}
       </div>
+
+      {onEditSplit && (
+        <button className="btn btn-soft btn-adjust" onClick={onEditSplit}>
+          Adjust my split percentages
+        </button>
+      )}
     </div>
   )
 }
@@ -75,7 +83,7 @@ function SpendLine({ line, currency, focused }) {
         {focused && <span className="split-focus-tag">your focus first</span>}
         <div className="split-top">
           <span className="split-name">
-            {line.label}<span className="split-pct">{Math.round(line.pct * 100)}%</span>
+            {line.label}<span className="split-pct">{line.pct}%</span>
           </span>
           <span className="split-figs">
             <b>{money(line.actual, currency)}</b> / {money(line.target, currency)}
@@ -106,7 +114,7 @@ function BuildLine({ line, currency, focused, onMove }) {
         {focused && <span className="split-focus-tag">your focus first</span>}
         <div className="split-top">
           <span className="split-name">
-            {line.label}<span className="split-pct">{Math.round(line.pct * 100)}%</span>
+            {line.label}<span className="split-pct">{line.pct}%</span>
           </span>
           <span className="split-figs">
             <b>{money(line.actual, currency)}</b> / {money(line.target, currency)}
