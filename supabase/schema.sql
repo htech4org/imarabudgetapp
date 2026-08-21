@@ -5,7 +5,12 @@
 --  HOW TO USE
 --  1. Open your Supabase project → SQL Editor → New query
 --  2. Paste this ENTIRE file and click Run
---  3. Then run the ONE extra line at the very bottom of this file to set
+--  3. Run migration-002-leaderboards-history-custom-split.sql the same way.
+--     It adds the leaderboards, month history and custom split percentages.
+--     (It is written to be safe on a live database, which also makes it safe
+--      on an empty one — so a fresh project just runs both files in order,
+--      and there is only ever one copy of that code to keep in step.)
+--  4. Then run the ONE extra line at the very bottom of this file to set
 --     your admin password (instructions are there)
 --
 --  SECURITY MODEL

@@ -4,6 +4,7 @@ import { cohort } from '../lib/calc'
 import { ARCHETYPES } from '../lib/constants'
 import { money, moneyShort, pct, shortDate } from '../lib/format'
 import EntryList from '../components/EntryList'
+import Leaderboard from '../components/Leaderboard'
 
 const KEY = 'imara_admin_pw'
 
@@ -163,9 +164,7 @@ function Console({ data, onRefresh, busy, onLock }) {
               {c.lineHits.map((l) => (
                 <div key={l.key}>
                   <div className="row-between" style={{ marginBottom: 5 }}>
-                    <span className="small" style={{ fontWeight: 600 }}>
-                      {l.label} <span className="split-pct">{Math.round(l.pct * 100)}%</span>
-                    </span>
+                    <span className="small" style={{ fontWeight: 600 }}>{l.label}</span>
                     <span className="small numeric muted">{pct(l.share)} · {l.hits}/{l.of}</span>
                   </div>
                   <div className={`bar bar-${l.key}`}><span style={{ width: `${Math.min(100, l.share * 100)}%` }} /></div>
@@ -173,9 +172,33 @@ function Console({ data, onRefresh, busy, onLock }) {
               ))}
             </div>
             <p className="tiny muted" style={{ marginTop: 14, lineHeight: 1.6 }}>
-              A line counts as landing when she has reached 80% of its target — except Living,
-              which lands when she has stayed at or under her 60%.
+              Each woman is measured against her own percentages, so there is no single target
+              to quote here. A line counts as landing when she has reached 80% of whatever she
+              set — except Living, which lands when she has stayed at or under hers.
+              {c.customSplits > 0 && ` ${c.customSplits} of ${c.totalWomen} have moved off 10/10/10/10/60.`}
             </p>
+          </div>
+        </div>
+
+        {/* ---- Leaderboards ---- */}
+        <div className="grid-2" style={{ marginTop: 16 }}>
+          <div className="panel">
+            <Leaderboard
+              title="Saver of the month"
+              subtitle="Each woman against her own Saving line, in her own 30-day period"
+              rows={c.boards.saving}
+              accent="saving"
+              emptyNote="No woman has logged income in an open month yet."
+            />
+          </div>
+          <div className="panel">
+            <Leaderboard
+              title="Investor of the month"
+              subtitle="Each woman against her own Investing line, in her own 30-day period"
+              rows={c.boards.investing}
+              accent="investing"
+              emptyNote="No investing targets are running yet."
+            />
           </div>
         </div>
 
@@ -388,7 +411,7 @@ function Drilldown({ s, onClose }) {
                 <div key={l.key} style={{ padding: '8px 0' }}>
                   <div className="row-between" style={{ marginBottom: 5 }}>
                     <span className="small" style={{ fontWeight: 600 }}>
-                      {l.label} <span className="split-pct">{Math.round(l.pct * 100)}%</span>
+                      {l.label} <span className="split-pct">{l.pct}%</span>
                       {l.kind === 'build' && <span className="tag tag-unassigned" style={{ marginLeft: 6 }}>moved, not spent</span>}
                     </span>
                     <span className="small numeric muted">

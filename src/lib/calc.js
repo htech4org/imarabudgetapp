@@ -6,7 +6,7 @@
 
 import {
   SPLIT_LINES, LIVING_CATEGORIES, CATEGORY_KEYS,
-  MOVE_KEY_BY_CATEGORY, PERIOD_DAYS,
+  MOVE_KEY_BY_CATEGORY, PERIOD_DAYS, DEFAULT_SPLIT, SPLIT_KEYS, splitOf,
 } from './constants'
 
 const sum = (rows) => rows.reduce((t, r) => t + Number(r.amount || 0), 0)
@@ -66,11 +66,17 @@ export function byBuildLine(entries = []) {
  * The Rich Woman Split for a period: five target amounts off total IN,
  * against what she has actually assigned to each line.
  *
+ * `split` is her own five percentages as whole numbers ({giving:10, …}). For a
+ * live month, pass her current settings — the whole panel then recalculates the
+ * instant she edits them. For a month that has closed, pass the percentages
+ * frozen on its archive, so history shows the targets she was really working
+ * to, not the ones she happens to be on today.
+ *
  * A line counts as "on the map" when:
  *   · Giving / Saving / Investing / Growth — she has reached 80% of target
- *   · Living — she has stayed at or under her 60%
+ *   · Living — she has stayed at or under her own Living percentage
  */
-export function splitPerformance(entries = []) {
+export function splitPerformance(entries = [], split = DEFAULT_SPLIT) {
   const { moneyIn } = totals(entries)
   const cats  = byCategory(entries)
   const build = byBuildLine(entries)
@@ -86,13 +92,17 @@ export function splitPerformance(entries = []) {
   }
 
   const lines = SPLIT_LINES.map((line) => {
-    const target = moneyIn * line.pct
+    const pct = Number(split?.[line.key] ?? DEFAULT_SPLIT[line.key]) || 0
+    const target = moneyIn * (pct / 100)
     const actual = actualFor[line.key]
+    // A line she has switched off is not a line she is failing.
     const onMap = moneyIn <= 0 ? false
+      : pct === 0 ? true
       : line.key === 'living' ? actual <= target
       : actual >= target * 0.8
     return {
       ...line,
+      pct,
       target,
       actual,
       remaining: Math.max(0, target - actual),
@@ -202,6 +212,111 @@ export function currentStreak(period, entries = []) {
 }
 
 // ---------------------------------------------------------------------------
+//  Leaderboards
+// ---------------------------------------------------------------------------
+
+/**
+ * Saver and Investor of the Month, ranked on how close each woman is to HER
+ * OWN target — her Saving ÷ (her IN × her saving %) × 100. Because it is a
+ * percentage of a personal target rather than an amount, a woman on a small
+ * income can top the board, and nobody's income is inferable from it.
+ *
+ * "The month" is each woman's own rolling 30-day period. They start on
+ * different days and that is fine — everyone is measured against her own.
+ *
+ * Left out: anyone with no income logged yet (no target to measure), and
+ * anyone who has set that line to 0% (a target of zero has no percentage).
+ *
+ * Ties share a rank, and the rank after a tie skips — 1, 2, 2, 4 — matching
+ * the SQL `rank()` the live leaderboard function uses.
+ */
+export function leaderboards(women = [], periods = [], entries = [], meId = null) {
+  const rows = women.map((w) => {
+    const active = periods.find((p) => p.woman_id === w.id && p.status === 'active')
+    if (!active) return null
+    const mine = entries.filter((e) => e.period_id === active.id)
+    const { moneyIn } = totals(mine)
+    if (moneyIn <= 0) return null
+    const build = byBuildLine(mine)
+    const pcts = splitOf(w)
+    return {
+      name: w.first_name,
+      is_you: meId ? w.id === meId : false,
+      saving:    pcts.saving    > 0 ? (build.saving    / (moneyIn * pcts.saving    / 100)) * 100 : null,
+      investing: pcts.investing > 0 ? (build.investing / (moneyIn * pcts.investing / 100)) * 100 : null,
+    }
+  }).filter(Boolean)
+
+  const board = (key) => {
+    const ranked = rows
+      .filter((r) => r[key] !== null)
+      .map((r) => ({ name: r.name, is_you: r.is_you, pct: Math.round(r[key] * 10) / 10 }))
+      .sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name))
+    let lastPct = null
+    let lastRank = 0
+    return ranked.map((r, i) => {
+      const rank = r.pct === lastPct ? lastRank : i + 1
+      lastPct = r.pct; lastRank = rank
+      return { ...r, rank }
+    })
+  }
+
+  return { saving: board('saving'), investing: board('investing') }
+}
+
+// ---------------------------------------------------------------------------
+//  Archived months
+// ---------------------------------------------------------------------------
+
+/**
+ * Rebuild the five split lines from a stored archive, using the percentages
+ * frozen onto it. Same shape splitPerformance returns, so the history screen
+ * renders through exactly the same components as a live month.
+ */
+export function archivedSplit(archive) {
+  if (!archive) return { moneyIn: 0, lines: [], linesOnMap: 0, onTrack: false }
+  const moneyIn = Number(archive.total_in || 0)
+  const cats  = archive.categories || {}
+  const moves = archive.moves || {}
+  const living = LIVING_CATEGORIES.reduce((t, c) => t + Number(cats[c] || 0), 0)
+  const actualFor = {
+    giving:    Number(cats.Giving || 0),
+    saving:    Number(moves.saving || 0),
+    investing: Number(moves.investing || 0),
+    growth:    Number(moves.growth || 0),
+    living,
+  }
+  const split = splitOf(archive)
+  const lines = SPLIT_LINES.map((line) => {
+    const pct = split[line.key]
+    const target = moneyIn * (pct / 100)
+    const actual = actualFor[line.key]
+    const onMap = moneyIn <= 0 ? false
+      : pct === 0 ? true
+      : line.key === 'living' ? actual <= target
+      : actual >= target * 0.8
+    return {
+      ...line, pct, target, actual,
+      remaining: Math.max(0, target - actual),
+      over: Math.max(0, actual - target),
+      progress: target > 0 ? actual / target : 0,
+      onMap,
+    }
+  })
+  const linesOnMap = lines.filter((l) => l.onMap).length
+  return { moneyIn, lines, linesOnMap, onTrack: moneyIn > 0 && linesOnMap >= 3 }
+}
+
+/** The archive's totals in the same shape `totals()` returns. */
+export function archivedTotals(archive) {
+  const moneyIn  = Number(archive?.total_in || 0)
+  const moneyOut = Number(archive?.total_out || 0)
+  const moved    = Number(archive?.total_moved || 0)
+  const gap      = Number(archive?.gap ?? (moneyIn - moneyOut))
+  return { moneyIn, moneyOut, moved, gap, unassigned: Math.max(0, gap - moved) }
+}
+
+// ---------------------------------------------------------------------------
 //  Cohort maths for the admin console
 // ---------------------------------------------------------------------------
 
@@ -221,7 +336,12 @@ export function womanSnapshot(woman, periods = [], entries = []) {
     period: current,
     currentEntries,
     totals: totals(currentEntries),
-    split: splitPerformance(currentEntries),
+    // A live month follows her current settings; a closed one keeps whatever
+    // was frozen onto it, so the team sees the same history she does.
+    split: splitPerformance(
+      currentEntries,
+      current && current.status === 'closed' ? splitOf(current) : splitOf(woman)
+    ),
     consistency: current ? consistency(current, herEntries) : 0,
     daysLogged: new Set(currentEntries.map((e) => e.entry_date)).size,
     daysElapsed: current ? daysElapsed(current) : 0,
@@ -237,8 +357,9 @@ export function womanSnapshot(woman, periods = [], entries = []) {
 }
 
 export function cohort(data) {
-  const { women = [], periods = [], entries = [] } = data || {}
+  const { women = [], periods = [], entries = [], archives = [] } = data || {}
   const snapshots = women.map((w) => womanSnapshot(w, periods, entries))
+  const boards = leaderboards(women, periods, entries, null)
   const active = snapshots.filter((s) => s.period && s.period.status === 'active')
   const withIncome = snapshots.filter((s) => s.totals.moneyIn > 0)
 
@@ -292,12 +413,20 @@ export function cohort(data) {
       : 0,
   })).sort((a, b) => b.count - a.count)
 
-  // Per-line: how much of the cohort is landing each of the five.
+  // Per-line: how much of the cohort is landing each of the five. Each woman
+  // is judged against her own percentage, so there is no single cohort target
+  // to quote — only how many are hitting whatever they set for themselves.
   const lineHits = SPLIT_LINES.map((line) => {
     const rows = withIncome
     const hits = rows.filter((s) => s.split.lines.find((l) => l.key === line.key)?.onMap).length
     return { ...line, share: rows.length ? hits / rows.length : 0, hits, of: rows.length }
   })
+
+  // How many have moved off the standard 10/10/10/10/60.
+  const customSplits = women.filter((w) => {
+    const s = splitOf(w)
+    return SPLIT_KEYS.some((k) => s[k] !== DEFAULT_SPLIT[k])
+  }).length
 
   return {
     snapshots,
@@ -319,6 +448,9 @@ export function cohort(data) {
     gapTrend,
     byArchetype,
     lineHits,
+    boards,
+    customSplits,
+    archives,
     currency,
     mixedCurrency,
     periodDays: PERIOD_DAYS,

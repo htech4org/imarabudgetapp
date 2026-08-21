@@ -1,15 +1,17 @@
-import { ARCHETYPES, CREED } from '../lib/constants'
+import { ARCHETYPES, CREED, splitOf } from '../lib/constants'
 import { totals, dayOfPeriod, daysBetween, periodComplete } from '../lib/calc'
 import { money, shortDate } from '../lib/format'
 import SplitPanel from '../components/SplitPanel'
 import MonthGrid from '../components/MonthGrid'
 import EntryList from '../components/EntryList'
+import Leaderboard from '../components/Leaderboard'
 
 export default function Dashboard({
-  woman, period, entries, pastPeriods, allEntries,
-  onAdd, onDelete, onOpenSummary, onSignOut,
+  woman, period, entries, pastPeriods, allEntries, archives, boards,
+  onAdd, onDelete, onOpenSummary, onSignOut, onOpenSettings, onOpenHistory,
 }) {
   const arch = ARCHETYPES[woman.archetype]
+  const split = splitOf(woman)
   const cur = woman.currency || '₦'
   const t = totals(entries)
   const day = dayOfPeriod(period)
@@ -114,8 +116,37 @@ export default function Dashboard({
             entries={entries}
             currency={cur}
             focusOn={arch?.focusOn}
+            split={split}
             onMove={(line) => onAdd('MOVE', line)}
+            onEditSplit={onOpenSettings}
           />
+        </div>
+
+        {/* ---- The boards ---- */}
+        <div className="section">
+          <div className="section-head">
+            <span className="eyebrow">This month across the trybe</span>
+          </div>
+          <p className="small muted" style={{ marginBottom: 14, lineHeight: 1.65 }}>
+            Everyone is measured against her own target, not her income — so this is about
+            follow-through, not who earns most. No amounts are shown to anyone.
+          </p>
+          <div className="stack" style={{ gap: 12 }}>
+            <Leaderboard
+              title="Saver of the month"
+              subtitle="How close each woman is to her own Saving line"
+              rows={boards?.saving}
+              accent="saving"
+              emptyNote="Nobody has logged income yet this month, so there is nothing to rank. Yours could be the first."
+            />
+            <Leaderboard
+              title="Investor of the month"
+              subtitle="How close each woman is to her own Investing line"
+              rows={boards?.investing}
+              accent="investing"
+              emptyNote="No investing targets are running yet this month."
+            />
+          </div>
         </div>
 
         {/* ---- The month ---- */}
@@ -152,40 +183,46 @@ export default function Dashboard({
         </div>
 
         {/* ---- History ---- */}
-        {pastPeriods.length > 0 && (
+        {archives?.length > 0 && (
           <div className="section">
             <div className="section-head">
               <span className="eyebrow">Your past months</span>
             </div>
             <div className="stack" style={{ gap: 8 }}>
-              {pastPeriods.map((p) => {
-                const pt = totals(allEntries.filter((e) => e.period_id === p.id))
-                return (
-                  <div className="history-row" key={p.id}>
-                    <div style={{ minWidth: 0 }}>
-                      <div className="small" style={{ fontWeight: 600 }}>Month {p.period_number}</div>
-                      <div className="tiny muted">{shortDate(p.start_date)} — {shortDate(p.end_date)}</div>
-                      {p.realisation && (
-                        <div className="tiny" style={{ color: 'var(--clay)', marginTop: 4, fontStyle: 'italic' }}>
-                          "{p.realisation}"
-                        </div>
-                      )}
-                    </div>
-                    <span
-                      className="numeric small"
-                      style={{ fontWeight: 600, whiteSpace: 'nowrap', color: pt.gap >= 0 ? '#2E7C5C' : 'var(--clay)' }}
-                    >
-                      {pt.gap >= 0 ? '+' : '−'}{money(Math.abs(pt.gap), cur)}
-                    </span>
+              {archives.slice(0, 2).map((a) => (
+                <div className="history-row" key={a.id}>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="small" style={{ fontWeight: 600 }}>Month {a.period_number}</div>
+                    <div className="tiny muted">{shortDate(a.start_date)} — {shortDate(a.end_date)}</div>
+                    {a.realisation && (
+                      <div className="tiny" style={{ color: 'var(--clay)', marginTop: 4, fontStyle: 'italic' }}>
+                        "{a.realisation}"
+                      </div>
+                    )}
                   </div>
-                )
-              })}
+                  <span
+                    className="numeric small"
+                    style={{ fontWeight: 600, whiteSpace: 'nowrap', color: Number(a.gap) >= 0 ? '#2E7C5C' : 'var(--clay)' }}
+                  >
+                    {Number(a.gap) >= 0 ? '+' : '−'}{money(Math.abs(Number(a.gap)), cur)}
+                  </span>
+                </div>
+              ))}
             </div>
+            <button className="btn btn-soft" style={{ marginTop: 10 }} onClick={onOpenHistory}>
+              {archives.length > 2
+                ? `See all ${archives.length} past months`
+                : 'Open my past months'}
+            </button>
           </div>
         )}
       </div>
 
       <div className="footer-note">
+        <div className="row" style={{ justifyContent: 'center', gap: 18, marginBottom: 18 }}>
+          <button className="btn-link" onClick={onOpenSettings}>My split settings</button>
+          <button className="btn-link" onClick={onOpenHistory}>My past months</button>
+        </div>
         <p className="creed">{CREED}</p>
         <p style={{ marginBottom: 12 }}>© IMARA Wealth Trybe · Leading Ladies Foundation</p>
         <button className="btn-link" onClick={onSignOut}>Sign out of this device</button>

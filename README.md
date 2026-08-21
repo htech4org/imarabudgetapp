@@ -25,6 +25,12 @@ IMARA Money Journey.
 - Sees a calendar of the days she has shown up for
 - Closes out on day 30 with her Gap, her biggest leak, and her own one sentence
 - Starts a new month whenever she's ready, keeping everything before it
+- **Sets her own split percentages** instead of being locked to 10/10/10/10/60.
+  They must still total 100%. Her current month recalculates as she moves them
+- **Opens any past month** from her history — the figures, every category, her
+  realisation, and the percentages that were live *at the time*
+- **Sees Saver and Investor of the Month** — every woman ranked on how close she
+  is to her own target, names and percentages only
 
 **For the team** (at `/admin`, one shared password)
 
@@ -54,8 +60,26 @@ A `MOVE` is deliberately **not** counted as money OUT. Cashflow is
 it. The dashboard says this in plain language when she has moved anything.
 
 A line counts as landed when she reaches 80% of its target — except Living,
-which lands when she stays at or under her 60%. Three of five landed is
+which lands when she stays at or under hers. Three of five landed is
 "on track", and that's the figure the admin console reports.
+
+Percentages are per-woman, whole numbers, constrained in the database to total
+100. A live month follows her current settings; a closed month keeps the
+percentages frozen onto it when it closed, so changing her split never rewrites
+her history.
+
+## The leaderboards
+
+`imara_leaderboard()` is the only function that reads across women, and it is
+built so that is all it can do: it returns a first name, a percentage, and a
+server-computed "is this you" flag. No amounts, no income, no contact details,
+and **no woman ids** — an id is the key to her entire map, so the board never
+emits one. Ranking on percentage-of-her-own-target rather than amount is what
+makes it safe to show everyone: a woman on a small income can top it, and
+nobody's income can be read off it.
+
+Left out of a board: anyone with no income logged this period (no target to
+measure against) and anyone who has set that line to 0%.
 
 ---
 

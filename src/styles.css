@@ -375,6 +375,141 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
 }
 .move-btn:active { background: #fff; }
 
+.btn-adjust { margin-top: 2px; }
+
+.back-link {
+  color: var(--cream); font-size: 13px; font-weight: 500;
+  opacity: 0.82; padding: 0;
+}
+.back-link:active { opacity: 1; }
+
+/* --------------------------------------------------------------------------
+   Leaderboards
+   -------------------------------------------------------------------------- */
+
+.board {
+  background: var(--surface); border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg); padding: 17px 18px; box-shadow: var(--shadow);
+}
+.board-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.board-sub { font-size: 12px; color: var(--text-soft); margin: 5px 0 14px; line-height: 1.5; }
+.board-list { list-style: none; }
+
+.board-row {
+  display: flex; align-items: center; gap: 11px; padding: 8px 8px;
+  border-radius: 11px; margin: 0 -8px;
+}
+.board-row + .board-row { border-top: 1px solid var(--line-soft); }
+.board-row.is-you {
+  background: var(--cream); border-top-color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--peach);
+}
+
+.board-rank {
+  width: 24px; min-width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  background: var(--surface-2); color: var(--text-soft);
+}
+.medal-1 { background: var(--gold);  color: var(--maroon-900); }
+.medal-2 { background: var(--peach); color: var(--maroon-900); }
+.medal-3 { background: var(--blush); color: var(--maroon-900); }
+
+.board-name {
+  flex: 1; min-width: 0; font-size: 13.5px; font-weight: 500;
+  display: flex; align-items: center; gap: 7px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.board-you {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.9px; text-transform: uppercase;
+  background: var(--maroon-900); color: #fff; border-radius: 100px; padding: 2px 7px;
+}
+.board-pct { display: flex; align-items: center; gap: 9px; }
+.board-pct b {
+  font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+  min-width: 48px; text-align: right;
+}
+.board-bar {
+  display: block; width: 62px; height: 7px; border-radius: 100px;
+  background: rgba(76, 5, 11, 0.09); overflow: hidden;
+}
+.board-bar > span { display: block; height: 100%; border-radius: 100px; }
+.board-pct.bar-saving    .board-bar > span { background: var(--green); }
+.board-pct.bar-saving    b { color: #2E7C5C; }
+.board-pct.bar-investing .board-bar > span { background: var(--forest); }
+.board-pct.bar-investing b { color: var(--forest); }
+
+/* --------------------------------------------------------------------------
+   Split settings
+   -------------------------------------------------------------------------- */
+
+.total-badge {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border-radius: var(--r); padding: 14px 17px; border: 1.5px solid transparent;
+}
+.total-badge.ok  { background: #EAF7F1; border-color: rgba(89, 186, 142, 0.5); color: #2E7C5C; }
+.total-badge.off { background: #FFF3E3; border-color: var(--gold); color: var(--clay); }
+.total-figure { font-family: var(--font-display); font-size: 27px; font-weight: 600; line-height: 1; }
+
+.pct-row {
+  background: var(--surface); border: 1px solid var(--line-soft);
+  border-radius: var(--r); padding: 14px 16px; box-shadow: var(--shadow);
+}
+.stepper { display: flex; align-items: center; gap: 2px; }
+.stepper button {
+  width: 30px; height: 30px; border-radius: 9px; background: var(--surface-2);
+  color: var(--maroon-900); font-size: 17px; font-weight: 600; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.stepper button:active { background: var(--cream); }
+.pct-input {
+  width: 40px; text-align: right; border: none; background: none; outline: none;
+  font-size: 19px; font-weight: 700; padding: 0 1px;
+}
+.pct-sign { font-size: 14px; font-weight: 600; color: var(--text-soft); margin-right: 4px; }
+
+.slider {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+  border-radius: 100px; background: rgba(76, 5, 11, 0.12); margin-top: 13px; outline: none;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--maroon-900); border: 3px solid #fff;
+  box-shadow: 0 1px 5px rgba(76, 5, 11, 0.3); cursor: pointer;
+}
+.slider::-moz-range-thumb {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--maroon-900); border: 3px solid #fff;
+  box-shadow: 0 1px 5px rgba(76, 5, 11, 0.3); cursor: pointer; border-color: #fff;
+}
+.saved-note {
+  background: #EAF7F1; border: 1px solid rgba(89, 186, 142, 0.5);
+  color: #2E7C5C; border-radius: 12px; padding: 12px 14px;
+  font-size: 13.5px; font-weight: 500;
+}
+
+/* --------------------------------------------------------------------------
+   Past months
+   -------------------------------------------------------------------------- */
+
+.month-card {
+  display: block; width: 100%; text-align: left;
+  background: var(--surface); border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg); padding: 16px 17px; box-shadow: var(--shadow);
+  transition: transform 0.12s ease;
+}
+.month-card:active { transform: scale(0.99); }
+.month-card-quote {
+  font-family: var(--font-display); font-style: italic; font-size: 14px;
+  color: var(--clay); line-height: 1.45; margin-top: 11px;
+  padding-left: 11px; border-left: 2px solid var(--peach);
+}
+.month-card-open {
+  display: block; margin-top: 12px; font-size: 12px;
+  font-weight: 600; color: var(--clay);
+}
+
 /* --------------------------------------------------------------------------
    Month grid
    -------------------------------------------------------------------------- */

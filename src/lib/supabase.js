@@ -25,6 +25,9 @@ const MESSAGES = {
   bad_amount:          "Please enter an amount greater than zero.",
   date_outside_period: "That day is outside the month you are tracking.",
   bad_password:        "That password is not right.",
+  split_not_100:       "Your five percentages need to add up to exactly 100%.",
+  split_negative:      "A percentage cannot be less than zero.",
+  split_incomplete:    "All five percentages need a value.",
 }
 
 export async function rpc(fn, args = {}) {

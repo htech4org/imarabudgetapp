@@ -77,13 +77,38 @@ export const CATEGORY_KEYS = CATEGORIES.map((c) => c.key)
 // The Rich Woman Split. Every month's income gets assigned.
 //   kind 'spend' — lines you can see in her OUT entries
 //   kind 'build' — lines she has to deliberately MOVE money into
+//
+// The percentages are NOT here any more — each woman carries her own on her
+// profile, so this is only the shape and the language of the five lines.
 export const SPLIT_LINES = [
-  { key: 'giving',    label: 'Giving',           pct: 0.10, kind: 'spend', note: 'From your Giving category' },
-  { key: 'saving',    label: 'Saving',           pct: 0.10, kind: 'build', note: 'Your emergency fund' },
-  { key: 'investing', label: 'Investing',        pct: 0.10, kind: 'build', note: 'Money that multiplies' },
-  { key: 'growth',    label: 'Personal Growth',  pct: 0.10, kind: 'build', note: 'Skills, learning, you' },
-  { key: 'living',    label: 'Living',           pct: 0.60, kind: 'spend', note: 'Everything else you spend' },
+  { key: 'giving',    label: 'Giving',           kind: 'spend', note: 'From your Giving category' },
+  { key: 'saving',    label: 'Saving',           kind: 'build', note: 'Your emergency fund' },
+  { key: 'investing', label: 'Investing',        kind: 'build', note: 'Money that multiplies' },
+  { key: 'growth',    label: 'Personal Growth',  kind: 'build', note: 'Skills, learning, you' },
+  { key: 'living',    label: 'Living',           kind: 'spend', note: 'Everything else you spend' },
 ]
+
+// What every woman starts on, and what "reset to default" restores.
+// Whole numbers — 10 means 10%.
+export const DEFAULT_SPLIT = { giving: 10, saving: 10, investing: 10, growth: 10, living: 60 }
+
+export const SPLIT_KEYS = SPLIT_LINES.map((l) => l.key)
+
+/** Pull her five percentages off a woman/period/archive row, with fallbacks. */
+export function splitOf(source) {
+  if (!source) return { ...DEFAULT_SPLIT }
+  return {
+    giving:    numOr(source.pct_giving,    DEFAULT_SPLIT.giving),
+    saving:    numOr(source.pct_saving,    DEFAULT_SPLIT.saving),
+    investing: numOr(source.pct_investing, DEFAULT_SPLIT.investing),
+    growth:    numOr(source.pct_growth,    DEFAULT_SPLIT.growth),
+    living:    numOr(source.pct_living,    DEFAULT_SPLIT.living),
+  }
+}
+
+const numOr = (v, fallback) => (v === null || v === undefined || v === '' ? fallback : Number(v))
+
+export const splitTotal = (s) => SPLIT_KEYS.reduce((t, k) => t + (Number(s?.[k]) || 0), 0)
 
 export const BUILD_LINES = SPLIT_LINES.filter((l) => l.kind === 'build')
 export const BUILD_LINE_KEYS = BUILD_LINES.map((l) => l.key)

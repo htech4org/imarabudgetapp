@@ -4,6 +4,8 @@ import Signup from './screens/Signup'
 import ArchetypePick from './screens/ArchetypePick'
 import Dashboard from './screens/Dashboard'
 import Summary from './screens/Summary'
+import Settings from './screens/Settings'
+import History from './screens/History'
 import Admin from './screens/Admin'
 import AddEntry from './components/AddEntry'
 
@@ -17,9 +19,10 @@ export default function App() {
   const [state, setState] = useState(null)      // { woman, periods, entries }
   const [booting, setBooting] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [view, setView] = useState('dashboard') // 'dashboard' | 'summary'
+  const [view, setView] = useState('dashboard') // 'dashboard' | 'summary' | 'settings' | 'history'
   const [sheet, setSheet] = useState(null)      // { mode, line }
   const [toast, setToast] = useState('')
+  const [boards, setBoards] = useState(null)    // the two leaderboards
 
   // Resume her session from this device.
   useEffect(() => {
@@ -37,6 +40,22 @@ export default function App() {
     if (payload?.woman?.id) localStorage.setItem(STORE, payload.woman.id)
     return payload
   }, [])
+
+  // The leaderboards are the one thing that reads across women, so they come
+  // from their own function rather than her state. Refreshed whenever her own
+  // numbers change, since her position may have moved.
+  const womanId = state?.woman?.id
+  const entryCount = state?.entries?.length ?? 0
+  const savingPct = state?.woman?.pct_saving
+  const investingPct = state?.woman?.pct_investing
+  useEffect(() => {
+    if (!womanId) { setBoards(null); return }
+    let cancelled = false
+    rpc('imara_leaderboard', { p_woman_id: womanId })
+      .then((b) => { if (!cancelled) setBoards(b) })
+      .catch(() => { if (!cancelled) setBoards(null) })
+    return () => { cancelled = true }
+  }, [womanId, entryCount, savingPct, investingPct])
 
   const run = useCallback(async (fn, args) => {
     setBusy(true)
@@ -57,6 +76,10 @@ export default function App() {
     () => periods.filter((p) => p.id !== shownPeriod?.id),
     [periods, shownPeriod]
   )
+  const archives = useMemo(
+    () => (state?.archives || []).filter((a) => a.period_id !== shownPeriod?.id),
+    [state, shownPeriod]
+  )
 
   // ---- actions -----------------------------------------------------------
   const signup = (form) => run('imara_signup', {
@@ -68,6 +91,15 @@ export default function App() {
 
   const pickArchetype = (key) =>
     run('imara_set_archetype', { p_woman_id: state.woman.id, p_archetype: key })
+
+  const saveSplit = (split) => run('imara_set_split', {
+    p_woman_id:  state.woman.id,
+    p_giving:    split.giving,
+    p_saving:    split.saving,
+    p_investing: split.investing,
+    p_growth:    split.growth,
+    p_living:    split.living,
+  })
 
   const addEntry = async (payload) => {
     try {
@@ -148,13 +180,29 @@ export default function App() {
     )
   }
 
-  // With no month open there is nothing to log into, so the closed workbook
-  // is the only sensible place to be.
-  const effectiveView = activePeriod ? view : 'summary'
+  // With no month open there is nothing to log into, so the closed workbook is
+  // the only sensible place to be — but History and Settings still open, since
+  // neither needs a live month.
+  const standalone = view === 'history' || view === 'settings'
+  const effectiveView = standalone ? view : activePeriod ? view : 'summary'
 
   return (
     <>
-      {effectiveView === 'summary' ? (
+      {effectiveView === 'settings' ? (
+        <Settings
+          woman={state.woman}
+          entries={periodEntries}
+          busy={busy}
+          onSave={saveSplit}
+          onBack={() => setView('dashboard')}
+        />
+      ) : effectiveView === 'history' ? (
+        <History
+          woman={state.woman}
+          archives={archives}
+          onBack={() => setView('dashboard')}
+        />
+      ) : effectiveView === 'summary' ? (
         <Summary
           woman={state.woman}
           period={shownPeriod}
@@ -171,9 +219,13 @@ export default function App() {
           entries={periodEntries}
           pastPeriods={pastPeriods}
           allEntries={allEntries}
+          archives={archives}
+          boards={boards}
           onAdd={(mode, line) => setSheet({ mode, line })}
           onDelete={deleteEntry}
           onOpenSummary={() => setView('summary')}
+          onOpenSettings={() => setView('settings')}
+          onOpenHistory={() => setView('history')}
           onSignOut={signOut}
         />
       )}
