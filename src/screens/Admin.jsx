@@ -5,6 +5,7 @@ import { ARCHETYPES } from '../lib/constants'
 import { money, moneyShort, pct, shortDate } from '../lib/format'
 import EntryList from '../components/EntryList'
 import Leaderboard from '../components/Leaderboard'
+import ReadingLeaderboard from '../components/ReadingLeaderboard'
 
 const KEY = 'imara_admin_pw'
 
@@ -64,14 +65,15 @@ export default function Admin() {
     )
   }
 
-  return <Console data={data} onRefresh={() => load(password)} busy={busy} onLock={() => {
+  return <Console data={data} password={password} onRefresh={() => load(password)} busy={busy} onLock={() => {
     sessionStorage.removeItem(KEY); setAuthed(false); setPassword(''); setData(null)
   }} />
 }
 
 // ---------------------------------------------------------------------------
 
-function Console({ data, onRefresh, busy, onLock }) {
+function Console({ data, password, onRefresh, busy, onLock }) {
+  const [tab, setTab] = useState('budget')   // 'budget' | 'reading'
   const [query, setQuery] = useState('')
   const [archFilter, setArchFilter] = useState('all')
   const [openId, setOpenId] = useState(null)
@@ -99,14 +101,25 @@ function Console({ data, onRefresh, busy, onLock }) {
             <h1 className="display d-md" style={{ marginTop: 4 }}>the trybe at a glance</h1>
           </div>
           <div className="row" style={{ gap: 8 }}>
-            <button className="btn btn-sm btn-soft" onClick={onRefresh} disabled={busy}>
-              {busy ? 'Refreshing…' : 'Refresh'}
-            </button>
+            {tab === 'budget' && (
+              <button className="btn btn-sm btn-soft" onClick={onRefresh} disabled={busy}>
+                {busy ? 'Refreshing…' : 'Refresh'}
+              </button>
+            )}
             <button className="btn btn-sm btn-soft" onClick={onLock}>Lock</button>
+          </div>
+        </div>
+        <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: -4 }}>
+          <div className="type-toggle" style={{ maxWidth: 320 }}>
+            <button className={tab === 'budget' ? 'on' : ''} onClick={() => setTab('budget')}>Budget</button>
+            <button className={tab === 'reading' ? 'on' : ''} onClick={() => setTab('reading')}>Book Reading</button>
           </div>
         </div>
       </div>
 
+      {tab === 'reading' ? (
+        <ReadingConsole password={password} />
+      ) : (
       <div className="admin">
         {/* ---- Headline metrics ---- */}
         <div className="metrics">
@@ -347,8 +360,9 @@ function Console({ data, onRefresh, busy, onLock }) {
           © IMARA Wealth Trybe · Leading Ladies Foundation · the map is not the judgment, it's the way out.
         </p>
       </div>
+      )}
 
-      {open && <Drilldown s={open} onClose={() => setOpenId(null)} />}
+      {tab === 'budget' && open && <Drilldown s={open} onClose={() => setOpenId(null)} />}
     </>
   )
 }
@@ -359,6 +373,337 @@ function Metric({ k, v, s, tone }) {
       <div className="k">{k}</div>
       <div className={`v v-${tone || 'ink'}`}>{v}</div>
       <div className="s">{s}</div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+//  Reading tab
+// ---------------------------------------------------------------------------
+
+const EMPTY_BOOK = { book_id: null, title: '', author: '', description: '', cover_url: '', is_active: true, sort_order: 0 }
+const EMPTY_CHAPTER = { chapter_id: null, chapter_number: 1, title: '', content: '', sort_order: 0 }
+const EMPTY_QUESTION = { question_id: null, question_text: '', options: ['', ''], correct_index: 0, sort_order: 0 }
+
+function ReadingConsole({ password }) {
+  const [books, setBooks] = useState(null)
+  const [overview, setOverview] = useState(null)
+  const [board, setBoard] = useState(null)
+  const [selectedBookId, setSelectedBookId] = useState(null)
+  const [chapters, setChapters] = useState(null)
+  const [selectedChapterId, setSelectedChapterId] = useState(null)
+  const [questions, setQuestions] = useState(null)
+
+  const [bookForm, setBookForm] = useState(EMPTY_BOOK)
+  const [chapterForm, setChapterForm] = useState(EMPTY_CHAPTER)
+  const [questionForm, setQuestionForm] = useState(EMPTY_QUESTION)
+
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const loadBooks = () => rpc('imara_admin_books_list', { p_admin_password: password }).then(setBooks)
+  const loadOverview = () => rpc('imara_admin_reading_overview', { p_admin_password: password }).then(setOverview)
+  const loadBoard = () => rpc('imara_reading_leaderboard', {}).then(setBoard)
+  const loadChapters = (bookId) => rpc('imara_admin_book_chapters', { p_admin_password: password, p_book_id: bookId }).then(setChapters)
+  const loadQuestions = (chapterId) => rpc('imara_admin_chapter_questions', { p_admin_password: password, p_chapter_id: chapterId }).then(setQuestions)
+
+  useEffect(() => { loadBooks(); loadOverview(); loadBoard() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (selectedBookId) loadChapters(selectedBookId)
+    else { setChapters(null); setSelectedChapterId(null); setQuestions(null) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBookId])
+  useEffect(() => {
+    if (selectedChapterId) loadQuestions(selectedChapterId)
+    else setQuestions(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChapterId])
+
+  const wrap = async (fn) => {
+    setBusy(true); setError('')
+    try { await fn() } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+
+  const saveBook = () => wrap(async () => {
+    await rpc('imara_admin_book_upsert', {
+      p_admin_password: password, p_book_id: bookForm.book_id,
+      p_title: bookForm.title, p_author: bookForm.author, p_description: bookForm.description,
+      p_cover_url: bookForm.cover_url, p_is_active: bookForm.is_active, p_sort_order: Number(bookForm.sort_order) || 0,
+    })
+    setBookForm(EMPTY_BOOK)
+    await loadBooks()
+  })
+
+  const saveChapter = () => wrap(async () => {
+    await rpc('imara_admin_chapter_upsert', {
+      p_admin_password: password, p_chapter_id: chapterForm.chapter_id, p_book_id: selectedBookId,
+      p_chapter_number: Number(chapterForm.chapter_number) || 1, p_title: chapterForm.title,
+      p_content: chapterForm.content, p_sort_order: Number(chapterForm.sort_order) || 0,
+    })
+    setChapterForm({ ...EMPTY_CHAPTER, chapter_number: (chapters?.length || 0) + 1 })
+    await Promise.all([loadChapters(selectedBookId), loadBooks()])
+  })
+
+  const saveQuestion = () => wrap(async () => {
+    const opts = questionForm.options.map((o) => o.trim()).filter(Boolean)
+    if (opts.length < 2) throw new Error('A question needs at least two options.')
+    if (questionForm.correct_index >= opts.length) throw new Error('Pick which option is correct.')
+    await rpc('imara_admin_question_upsert', {
+      p_admin_password: password, p_question_id: questionForm.question_id, p_chapter_id: selectedChapterId,
+      p_question_text: questionForm.question_text, p_options: opts,
+      p_correct_index: questionForm.correct_index, p_sort_order: Number(questionForm.sort_order) || 0,
+    })
+    setQuestionForm({ ...EMPTY_QUESTION, sort_order: (questions?.length || 0) })
+    await loadQuestions(selectedChapterId)
+  })
+
+  const selectedBook = books?.find((b) => b.book_id === selectedBookId)
+  const selectedChapter = chapters?.find((c) => c.chapter_id === selectedChapterId)
+
+  return (
+    <div className="admin">
+      <div className="grid-2" style={{ marginTop: 16 }}>
+        <div className="panel">
+          <ReadingLeaderboard rows={board} />
+        </div>
+        <div className="panel">
+          <div className="section-head" style={{ marginTop: 0 }}>
+            <span className="eyebrow">Reading engagement</span>
+          </div>
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr><th>Name</th><th className="num">Started</th><th className="num">Completed</th><th className="num">This month</th><th>Last activity</th></tr>
+              </thead>
+              <tbody>
+                {(overview || []).map((r) => (
+                  <tr key={r.woman_id}>
+                    <td style={{ fontWeight: 600 }}>{r.first_name}</td>
+                    <td className="num">{r.books_started}</td>
+                    <td className="num">{r.books_completed}</td>
+                    <td className="num">{r.chapters_this_month}</td>
+                    <td className="tiny muted">{r.last_activity ? shortDate(r.last_activity.slice(0, 10)) : 'Never'}</td>
+                  </tr>
+                ))}
+                {overview && overview.length === 0 && (
+                  <tr><td colSpan={5} className="center muted" style={{ padding: 24 }}>Nobody has opened a book yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* ---- Books ---- */}
+      <div className="panel" style={{ marginTop: 16 }}>
+        <div className="section-head" style={{ marginTop: 0 }}>
+          <span className="eyebrow">Books</span>
+        </div>
+        <div className="stack" style={{ gap: 8, marginBottom: 18 }}>
+          {(books || []).map((b) => (
+            <div
+              key={b.book_id} className="history-row"
+              style={{ cursor: 'pointer', outline: selectedBookId === b.book_id ? '2px solid var(--maroon-900)' : 'none' }}
+              onClick={() => setSelectedBookId(b.book_id === selectedBookId ? null : b.book_id)}
+            >
+              <div>
+                <div className="small" style={{ fontWeight: 600 }}>
+                  {b.title} {!b.is_active && <span className="tag tag-unassigned" style={{ marginLeft: 6 }}>Draft</span>}
+                </div>
+                <div className="tiny muted">{b.author || 'No author set'} · {b.chapter_count} chapters</div>
+              </div>
+              <button
+                className="btn-link"
+                onClick={(e) => { e.stopPropagation(); setBookForm({ ...b }); setSelectedBookId(b.book_id) }}
+              >Edit</button>
+            </div>
+          ))}
+          {books && books.length === 0 && <p className="small muted">No books yet — add the first one below.</p>}
+        </div>
+
+        <div className="card-flat">
+          <p className="small" style={{ fontWeight: 600, marginBottom: 12 }}>
+            {bookForm.book_id ? 'Edit book' : 'Add a book'}
+          </p>
+          <div className="stack" style={{ gap: 12 }}>
+            <div className="field">
+              <label className="label">Title</label>
+              <input className="input" value={bookForm.title} onChange={(e) => setBookForm({ ...bookForm, title: e.target.value })} />
+            </div>
+            <div className="field">
+              <label className="label">Author</label>
+              <input className="input" value={bookForm.author} onChange={(e) => setBookForm({ ...bookForm, author: e.target.value })} />
+            </div>
+            <div className="field">
+              <label className="label">Description</label>
+              <textarea className="textarea" value={bookForm.description} onChange={(e) => setBookForm({ ...bookForm, description: e.target.value })} />
+            </div>
+            <div className="field">
+              <label className="label">Cover image URL (optional)</label>
+              <input className="input" value={bookForm.cover_url} onChange={(e) => setBookForm({ ...bookForm, cover_url: e.target.value })} />
+            </div>
+            <div className="row-between">
+              <label className="row" style={{ gap: 8 }}>
+                <input type="checkbox" checked={bookForm.is_active} onChange={(e) => setBookForm({ ...bookForm, is_active: e.target.checked })} />
+                <span className="small">Visible to women now</span>
+              </label>
+            </div>
+            {error && <div className="error-note">{error}</div>}
+            <div className="row-between">
+              <div />
+              <div className="row" style={{ gap: 8 }}>
+                {bookForm.book_id && <button className="btn-link" onClick={() => setBookForm(EMPTY_BOOK)}>Cancel</button>}
+                <button className="btn btn-sm btn-primary" onClick={saveBook} disabled={busy || !bookForm.title}>
+                  {bookForm.book_id ? 'Save book' : 'Add book'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ---- Chapters ---- */}
+      {selectedBook && (
+        <div className="panel" style={{ marginTop: 16 }}>
+          <div className="section-head" style={{ marginTop: 0 }}>
+            <span className="eyebrow">Chapters · {selectedBook.title}</span>
+          </div>
+          <div className="stack" style={{ gap: 8, marginBottom: 18 }}>
+            {(chapters || []).map((c) => (
+              <div
+                key={c.chapter_id} className="history-row"
+                style={{ cursor: 'pointer', outline: selectedChapterId === c.chapter_id ? '2px solid var(--maroon-900)' : 'none' }}
+                onClick={() => setSelectedChapterId(c.chapter_id === selectedChapterId ? null : c.chapter_id)}
+              >
+                <div>
+                  <div className="small" style={{ fontWeight: 600 }}>Chapter {c.chapter_number} · {c.title}</div>
+                  <div className="tiny muted">{c.question_count} questions</div>
+                </div>
+                <button className="btn-link" onClick={(e) => { e.stopPropagation(); setChapterForm({ ...c }); setSelectedChapterId(c.chapter_id) }}>Edit</button>
+              </div>
+            ))}
+            {chapters && chapters.length === 0 && <p className="small muted">No chapters yet — add the first one below.</p>}
+          </div>
+
+          <div className="card-flat">
+            <p className="small" style={{ fontWeight: 600, marginBottom: 12 }}>
+              {chapterForm.chapter_id ? 'Edit chapter' : 'Add a chapter'}
+            </p>
+            <div className="stack" style={{ gap: 12 }}>
+              <div className="row" style={{ gap: 12 }}>
+                <div className="field" style={{ width: 120 }}>
+                  <label className="label">Chapter #</label>
+                  <input className="input" type="number" min="1" value={chapterForm.chapter_number}
+                    onChange={(e) => setChapterForm({ ...chapterForm, chapter_number: e.target.value })} />
+                </div>
+                <div className="field grow">
+                  <label className="label">Title</label>
+                  <input className="input" value={chapterForm.title} onChange={(e) => setChapterForm({ ...chapterForm, title: e.target.value })} />
+                </div>
+              </div>
+              <div className="field">
+                <label className="label">Content shown before the test (optional)</label>
+                <textarea className="textarea" style={{ minHeight: 140 }} value={chapterForm.content}
+                  onChange={(e) => setChapterForm({ ...chapterForm, content: e.target.value })} />
+              </div>
+              {error && <div className="error-note">{error}</div>}
+              <div className="row-between">
+                {chapterForm.chapter_id && <button className="btn-link" onClick={() => setChapterForm(EMPTY_CHAPTER)}>Cancel</button>}
+                <button className="btn btn-sm btn-primary" onClick={saveChapter} disabled={busy || !chapterForm.title} style={{ marginLeft: 'auto' }}>
+                  {chapterForm.chapter_id ? 'Save chapter' : 'Add chapter'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---- Questions ---- */}
+      {selectedChapter && (
+        <div className="panel" style={{ marginTop: 16 }}>
+          <div className="section-head" style={{ marginTop: 0 }}>
+            <span className="eyebrow">Questions · Chapter {selectedChapter.chapter_number}</span>
+          </div>
+          <div className="stack" style={{ gap: 10, marginBottom: 18 }}>
+            {(questions || []).map((q, i) => (
+              <div className="card" key={q.question_id}>
+                <div className="row-between">
+                  <p className="small" style={{ fontWeight: 600 }}>{i + 1}. {q.question_text}</p>
+                  <button className="btn-link" onClick={() => setQuestionForm({ ...q, options: [...q.options] })}>Edit</button>
+                </div>
+                <div className="stack-s" style={{ marginTop: 8 }}>
+                  {q.options.map((opt, idx) => (
+                    <div key={idx} className="tiny" style={{ color: idx === q.correct_index ? '#2E7C5C' : 'var(--text-soft)', fontWeight: idx === q.correct_index ? 700 : 400 }}>
+                      {idx === q.correct_index ? '✓ ' : '· '}{opt}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {questions && questions.length === 0 && <p className="small muted">No questions yet — add the first one below.</p>}
+          </div>
+
+          <div className="card-flat">
+            <p className="small" style={{ fontWeight: 600, marginBottom: 12 }}>
+              {questionForm.question_id ? 'Edit question' : 'Add a question'}
+            </p>
+            <div className="stack" style={{ gap: 12 }}>
+              <div className="field">
+                <label className="label">Question</label>
+                <textarea className="textarea" value={questionForm.question_text}
+                  onChange={(e) => setQuestionForm({ ...questionForm, question_text: e.target.value })} />
+              </div>
+              <div className="field">
+                <label className="label">Options — tap the one that's correct</label>
+                <div className="stack-s">
+                  {questionForm.options.map((opt, idx) => (
+                    <div className="row" key={idx} style={{ gap: 8 }}>
+                      <button
+                        type="button"
+                        className={`cat-chip ${questionForm.correct_index === idx ? 'on' : ''}`}
+                        style={{ width: 40, flexShrink: 0, justifyContent: 'center' }}
+                        onClick={() => setQuestionForm({ ...questionForm, correct_index: idx })}
+                        title="Mark as correct"
+                      >✓</button>
+                      <input
+                        className="input grow" value={opt} placeholder={`Option ${idx + 1}`}
+                        onChange={(e) => {
+                          const options = [...questionForm.options]; options[idx] = e.target.value
+                          setQuestionForm({ ...questionForm, options })
+                        }}
+                      />
+                      {questionForm.options.length > 2 && (
+                        <button className="entry-del" onClick={() => {
+                          const options = questionForm.options.filter((_, i2) => i2 !== idx)
+                          const correct_index = questionForm.correct_index >= options.length ? 0 : questionForm.correct_index
+                          setQuestionForm({ ...questionForm, options, correct_index })
+                        }}>✕</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button className="btn-link" style={{ marginTop: 8 }}
+                  onClick={() => setQuestionForm({ ...questionForm, options: [...questionForm.options, ''] })}>
+                  + Add another option
+                </button>
+              </div>
+              {error && <div className="error-note">{error}</div>}
+              <div className="row-between">
+                {questionForm.question_id && <button className="btn-link" onClick={() => setQuestionForm(EMPTY_QUESTION)}>Cancel</button>}
+                <button className="btn btn-sm btn-primary" onClick={saveQuestion} disabled={busy || !questionForm.question_text} style={{ marginLeft: 'auto' }}>
+                  {questionForm.question_id ? 'Save question' : 'Add question'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <p className="tiny faint center" style={{ marginTop: 30 }}>
+        © IMARA Wealth Trybe · Leading Ladies Foundation
+      </p>
     </div>
   )
 }

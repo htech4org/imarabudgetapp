@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { rpc, configured } from './lib/supabase'
-import Signup from './screens/Signup'
+import Login from './screens/Login'
+import AppPicker from './screens/AppPicker'
 import ArchetypePick from './screens/ArchetypePick'
 import Dashboard from './screens/Dashboard'
 import Summary from './screens/Summary'
 import Settings from './screens/Settings'
 import History from './screens/History'
 import Admin from './screens/Admin'
+import ReadingHome from './screens/reading/ReadingHome'
+import ChapterView from './screens/reading/ChapterView'
 import AddEntry from './components/AddEntry'
 
 const STORE = 'imara_woman_id'
+const APP_STORE = 'imara_app_choice'   // 'budget' | 'reading' — which side she landed on last
 
 export default function App() {
   // The admin console lives on its own route. vercel.json rewrites every path
@@ -19,10 +23,18 @@ export default function App() {
   const [state, setState] = useState(null)      // { woman, periods, entries }
   const [booting, setBooting] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [appChoice, setAppChoiceState] = useState(null)  // null | 'budget' | 'reading'
   const [view, setView] = useState('dashboard') // 'dashboard' | 'summary' | 'settings' | 'history'
   const [sheet, setSheet] = useState(null)      // { mode, line }
   const [toast, setToast] = useState('')
-  const [boards, setBoards] = useState(null)    // the two leaderboards
+  const [boards, setBoards] = useState(null)    // the budget-side leaderboards
+
+  // ---- reading module state ------------------------------------------------
+  const [readingBooks, setReadingBooks] = useState([])
+  const [readingProgress, setReadingProgress] = useState([])
+  const [readingBoard, setReadingBoard] = useState([])
+  const [readingView, setReadingView] = useState('list')  // 'list' | 'chapter'
+  const [readingChapter, setReadingChapter] = useState(null) // { bookId, bookTitle, totalChapters, chapterNumber, data }
 
   // Resume her session from this device.
   useEffect(() => {
@@ -30,7 +42,11 @@ export default function App() {
     const id = localStorage.getItem(STORE)
     if (!id) { setBooting(false); return }
     rpc('imara_state', { p_woman_id: id })
-      .then(setState)
+      .then((payload) => {
+        setState(payload)
+        const savedApp = localStorage.getItem(APP_STORE)
+        if (savedApp === 'budget' || savedApp === 'reading') setAppChoiceState(savedApp)
+      })
       .catch(() => localStorage.removeItem(STORE))
       .finally(() => setBooting(false))
   }, [isAdmin])
@@ -41,9 +57,15 @@ export default function App() {
     return payload
   }, [])
 
-  // The leaderboards are the one thing that reads across women, so they come
-  // from their own function rather than her state. Refreshed whenever her own
-  // numbers change, since her position may have moved.
+  const setAppChoice = useCallback((choice) => {
+    setAppChoiceState(choice)
+    if (choice) localStorage.setItem(APP_STORE, choice)
+    else localStorage.removeItem(APP_STORE)
+  }, [])
+
+  // The budget leaderboards read across every woman, so they come from their
+  // own function rather than her state. Refreshed whenever her own numbers
+  // change, since her position may have moved.
   const womanId = state?.woman?.id
   const entryCount = state?.entries?.length ?? 0
   const savingPct = state?.woman?.pct_saving
@@ -63,7 +85,14 @@ export default function App() {
     finally { setBusy(false) }
   }, [adopt])
 
-  // ---- derived -----------------------------------------------------------
+  // Reading-side calls don't touch her budget state, so they skip adopt().
+  const runReading = useCallback(async (fn, args) => {
+    setBusy(true)
+    try { return await rpc(fn, args) }
+    finally { setBusy(false) }
+  }, [])
+
+  // ---- derived (budget side) ----------------------------------------------
   const periods = state?.periods || []
   const allEntries = state?.entries || []
   const activePeriod = useMemo(() => periods.find((p) => p.status === 'active') || null, [periods])
@@ -81,13 +110,17 @@ export default function App() {
     [state, shownPeriod]
   )
 
-  // ---- actions -----------------------------------------------------------
+  // ---- actions: login / signup --------------------------------------------
   const signup = (form) => run('imara_signup', {
     p_first_name: form.first_name, p_phone: form.phone,
-    p_email: form.email, p_currency: form.currency,
+    p_email: form.email, p_password: form.password, p_currency: form.currency,
   })
 
-  const lookup = (identifier) => run('imara_lookup', { p_identifier: identifier })
+  const login = ({ identifier, password }) =>
+    run('imara_login', { p_identifier: identifier, p_password: password })
+
+  const claim = ({ identifier, password }) =>
+    run('imara_claim_account', { p_identifier: identifier, p_password: password })
 
   const pickArchetype = (key) =>
     run('imara_set_archetype', { p_woman_id: state.woman.id, p_archetype: key })
@@ -136,9 +169,17 @@ export default function App() {
   }
 
   const signOut = () => {
-    if (!window.confirm('Sign out on this device? Your map stays safe — you can come back with your phone number.')) return
+    if (!window.confirm('Sign out on this device? Your map stays safe — log back in with your phone or email.')) return
     localStorage.removeItem(STORE)
-    setState(null); setView('dashboard')
+    localStorage.removeItem(APP_STORE)
+    setState(null); setView('dashboard'); setAppChoiceState(null)
+    setReadingBooks([]); setReadingProgress([]); setReadingBoard([]); setReadingView('list'); setReadingChapter(null)
+  }
+
+  const switchApp = () => {
+    setAppChoice(null)
+    setView('dashboard')
+    setReadingView('list'); setReadingChapter(null)
   }
 
   const flash = (msg, isError) => {
@@ -146,7 +187,69 @@ export default function App() {
     setTimeout(() => setToast(''), isError ? 4200 : 2600)
   }
 
-  // ---- render ------------------------------------------------------------
+  // ---- actions: reading module ---------------------------------------------
+  const loadReadingHome = useCallback(async () => {
+    if (!womanId) return
+    try {
+      const [books, progress, board] = await Promise.all([
+        rpc('imara_reading_books_list', {}),
+        rpc('imara_reading_progress', { p_woman_id: womanId }),
+        rpc('imara_reading_leaderboard', { p_woman_id: womanId }),
+      ])
+      setReadingBooks(books || [])
+      setReadingProgress(progress || [])
+      setReadingBoard(board || [])
+    } catch (e) { flash(e.message, true) }
+  }, [womanId])
+
+  const openChapter = async (bookId, bookTitle, totalChapters, chapterNumber) => {
+    try {
+      const rows = await runReading('imara_reading_chapter', {
+        p_woman_id: womanId, p_book_id: bookId, p_chapter_number: chapterNumber,
+      })
+      const data = rows?.[0]
+      if (!data) { flash('That chapter could not be opened.', true); return }
+      setReadingChapter({ bookId, bookTitle, totalChapters, chapterNumber, data })
+      setReadingView('chapter')
+    } catch (e) { flash(e.message, true) }
+  }
+
+  const startBook = async (bookId, bookTitle, totalChapters) => {
+    try {
+      await runReading('imara_reading_start', { p_woman_id: womanId, p_book_id: bookId })
+      await openChapter(bookId, bookTitle, totalChapters, 1)
+    } catch (e) { flash(e.message, true) }
+  }
+
+  const submitTest = async (chapterId, answers) => {
+    const result = await runReading('imara_reading_submit_test', {
+      p_woman_id: womanId, p_chapter_id: chapterId, p_answers: answers,
+    })
+    return result?.[0] || { score: 0, passed: false }
+  }
+
+  const nextChapter = async () => {
+    const { bookId, bookTitle, totalChapters, chapterNumber } = readingChapter
+    await loadReadingHome()
+    if (chapterNumber >= totalChapters) {
+      flash('Book complete. Well done — pick your next one.')
+      setReadingView('list'); setReadingChapter(null)
+    } else {
+      await openChapter(bookId, bookTitle, totalChapters, chapterNumber + 1)
+    }
+  }
+
+  const backToReadingList = async () => {
+    setReadingView('list'); setReadingChapter(null)
+    await loadReadingHome()
+  }
+
+  useEffect(() => {
+    if (appChoice === 'reading' && womanId) loadReadingHome()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appChoice, womanId])
+
+  // ---- render ---------------------------------------------------------------
   if (isAdmin) return <Admin />
 
   if (!configured) return <Misconfigured />
@@ -161,9 +264,51 @@ export default function App() {
   }
 
   if (!state?.woman) {
-    return <Signup onSignup={signup} onLookup={lookup} busy={busy} />
+    return <Login onSignup={signup} onLogin={login} onClaim={claim} busy={busy} />
   }
 
+  if (!appChoice) {
+    return (
+      <AppPicker
+        firstName={state.woman.first_name?.toLowerCase()}
+        onSelectBudget={() => setAppChoice('budget')}
+        onSelectReading={() => setAppChoice('reading')}
+      />
+    )
+  }
+
+  // ---------------------------------------------------------------- Reading
+  if (appChoice === 'reading') {
+    if (readingView === 'chapter' && readingChapter) {
+      return (
+        <ChapterView
+          bookTitle={readingChapter.bookTitle}
+          chapterNumber={readingChapter.chapterNumber}
+          totalChapters={readingChapter.totalChapters}
+          chapter={readingChapter.data}
+          busy={busy}
+          onSubmitTest={(answers) => submitTest(readingChapter.data.chapter_id, answers)}
+          onNext={nextChapter}
+          onBack={backToReadingList}
+        />
+      )
+    }
+    return (
+      <ReadingHome
+        firstName={state.woman.first_name?.toLowerCase()}
+        books={readingBooks}
+        progress={readingProgress}
+        board={readingBoard}
+        busy={busy}
+        onStart={startBook}
+        onOpenChapter={openChapter}
+        onSwitchApp={switchApp}
+        onSignOut={signOut}
+      />
+    )
+  }
+
+  // ---------------------------------------------------------------- Budget
   if (!state.woman.archetype) {
     return <ArchetypePick name={state.woman.first_name} onPick={pickArchetype} busy={busy} />
   }
@@ -227,6 +372,7 @@ export default function App() {
           onOpenSettings={() => setView('settings')}
           onOpenHistory={() => setView('history')}
           onSignOut={signOut}
+          onSwitchApp={switchApp}
         />
       )}
 

@@ -751,3 +751,38 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; white
 .footer-note .creed { font-family: var(--font-display); font-style: italic; text-transform: lowercase; font-size: 14px; color: var(--clay); margin-bottom: 8px; }
 
 .safe-bottom { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+
+
+/* --------------------------------------------------------------------------
+   Book Reading Tracker — additions
+   Everything else (forms, buttons, cards, tags, the .board leaderboard,
+   .cat-chip for the test options, .total-badge for pass/fail) is reused
+   as-is from what's already above. This is the only genuinely new CSS.
+   -------------------------------------------------------------------------- */
+
+.picker-tile {
+  display: flex; flex-direction: column; gap: 4px; text-align: left;
+  width: 100%; padding: 18px 20px; border-radius: var(--r-lg);
+  background: var(--surface); border: 1.5px solid var(--line);
+  box-shadow: var(--shadow); transition: transform 0.12s ease;
+}
+.picker-tile:active { transform: scale(0.99); }
+.picker-tile-title { font-family: var(--font-display); font-size: 18px; text-transform: lowercase; }
+.picker-tile-sub { font-size: 12.5px; color: var(--text-soft); }
+
+.link-inline {
+  background: none; border: none; padding: 0; color: var(--clay);
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+  font: inherit; font-weight: 600;
+}
+
+.book-card {
+  display: block; width: 100%; text-align: left;
+  background: var(--surface); border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg); padding: 16px 17px; box-shadow: var(--shadow);
+  transition: transform 0.12s ease;
+}
+.book-card:active { transform: scale(0.99); }
+.book-card:disabled { opacity: 0.6; }
+
+.bar-reading > span { background: var(--clay); }
