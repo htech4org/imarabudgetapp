@@ -66,11 +66,11 @@ export default function Login({ onSignup, onLogin, onClaim, busy }) {
       <div className="welcome">
         <span className="chip-brand">✦ IMARA Wealth Trybe</span>
         <h1 className="display d-xl" style={{ margin: '22px 0 12px' }}>
-          the daily<br />budget tracker
+          your money<br />& your growth
         </h1>
         <p style={{ fontSize: 14.5, lineHeight: 1.7, color: 'rgba(255,226,204,0.86)', maxWidth: 330 }}>
-          Income is not wealth. Cashflow is. For the next thirty days you are going
-          to write down what comes in and what goes out — and find your Gap.
+          Two tools, one journey. Track what comes in and out to find your Gap,
+          and work through your books one chapter at a time to grow your Wealth Code.
         </p>
         <p className="creed" style={{ marginTop: 20 }}>{CREED}</p>
       </div>
