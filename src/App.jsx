@@ -282,6 +282,7 @@ export default function App() {
     if (readingView === 'chapter' && readingChapter) {
       return (
         <ChapterView
+          key={readingChapter.data.chapter_id}
           bookTitle={readingChapter.bookTitle}
           chapterNumber={readingChapter.chapterNumber}
           totalChapters={readingChapter.totalChapters}
