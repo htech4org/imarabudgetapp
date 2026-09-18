@@ -28,7 +28,22 @@ const MESSAGES = {
   split_not_100:       "Your five percentages need to add up to exactly 100%.",
   split_negative:      "A percentage cannot be less than zero.",
   split_incomplete:    "All five percentages need a value.",
+
+  // Password login
+  invalid_login:       "That phone/email and password don't match what we have. Check them, or set a password below if this is your first time logging in.",
+  not_claimed:          "Looks like this is your first time logging in with a password. Set one below to continue.",
+  already_registered:  "That phone number or email is already registered. Choose \"I've been here before\" to log in.",
+  already_claimed:     "A password has already been set for this account. Please log in instead.",
+  password_too_short:  "Your password needs to be at least 6 characters.",
+
+  // Reading tracker
+  chapter_locked:      "Finish the chapter before this one first.",
+  not_started:          "Start this book before opening a chapter.",
 }
+
+// Exported so screens can catch this specific case (e.g. Login switching
+// itself into "set your password" mode) without re-matching message text.
+export const NOT_CLAIMED_MESSAGE = MESSAGES.not_claimed
 
 export async function rpc(fn, args = {}) {
   if (!configured) {
