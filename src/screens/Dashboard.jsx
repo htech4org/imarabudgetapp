@@ -8,7 +8,7 @@ import Leaderboard from '../components/Leaderboard'
 
 export default function Dashboard({
   woman, period, entries, pastPeriods, allEntries, archives, boards,
-  onAdd, onDelete, onOpenSummary, onSignOut, onOpenSettings, onOpenHistory,
+  onAdd, onDelete, onOpenSummary, onSignOut, onOpenSettings, onOpenHistory, onSwitchApp,
 }) {
   const arch = ARCHETYPES[woman.archetype]
   const split = splitOf(woman)
@@ -225,7 +225,10 @@ export default function Dashboard({
         </div>
         <p className="creed">{CREED}</p>
         <p style={{ marginBottom: 12 }}>© IMARA Wealth Trybe · Leading Ladies Foundation</p>
-        <button className="btn-link" onClick={onSignOut}>Sign out of this device</button>
+        <div className="row" style={{ justifyContent: 'center', gap: 18 }}>
+          {onSwitchApp && <button className="btn-link" onClick={onSwitchApp}>Book Reading</button>}
+          <button className="btn-link" onClick={onSignOut}>Sign out of this device</button>
+        </div>
       </div>
     </div>
   )
