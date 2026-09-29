@@ -58,3 +58,10 @@ export default function AppPicker({ firstName, onSelectBudget, onSelectReading }
     text-decoration: underline; cursor: pointer; font: inherit;
   }
 */
+
+{isMentor && (
+  <button className="picker-tile" onClick={onSelectTeam}>
+    <span className="picker-tile-title">my team</span>
+    <span className="picker-tile-sub">File this month's report for your team</span>
+  </button>
+)}
