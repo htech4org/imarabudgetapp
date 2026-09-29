@@ -110,7 +110,7 @@ function Console({ data, password, onRefresh, busy, onLock }) {
             <button className="btn btn-sm btn-soft" onClick={onLock}>Lock</button>
           </div>
         </div>
-        <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: -4 }}>
+        <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: 18 }}>
           <div className="type-toggle" style={{ maxWidth: 460 }}>
             <button className={tab === 'budget' ? 'on' : ''} onClick={() => setTab('budget')}>Budget</button>
             <button className={tab === 'reading' ? 'on' : ''} onClick={() => setTab('reading')}>Book Reading</button>
