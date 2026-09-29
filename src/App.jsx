@@ -257,28 +257,35 @@ export default function App() {
   }, [appChoice, womanId])
 
   // ---- actions: mentor team --------------------------------------------------
+ // ---- actions: mentor team --------------------------------------------------
   const loadTeam = useCallback(async () => {
     if (!womanId) return
     try {
-      const data = await rpc('imara_mentor_dashboard', { p_mentor_id: womanId })
+      const data = await rpc('imara_mentor_sessions', { p_mentor_id: womanId })
       setTeamData(data)
     } catch (e) { flash(e.message, true) }
   }, [womanId])
 
-  const submitTeamReport = async (teamWomanId, month, attendedCircle, attendedSisters, notes) => {
+  const setSistersConnectDay = async (weekday) => {
     try {
-      const data = await rpc('imara_mentor_submit_report', {
-        p_mentor_id: womanId,
-        p_woman_id: teamWomanId,
-        p_month: month,
-        p_attended_circle: attendedCircle,
-        p_attended_sisters_connect: attendedSisters,
-        p_notes: notes,
-      })
+      const data = await rpc('imara_mentor_set_sisters_connect_day', { p_mentor_id: womanId, p_weekday: weekday })
       setTeamData(data)
     } catch (e) { flash(e.message, true); throw e }
   }
 
+  const markAttendance = async (teamWomanId, sessionType, sessionId, attended) => {
+    try {
+      const data = await rpc('imara_mentor_mark_attendance', {
+        p_mentor_id: womanId,
+        p_woman_id: teamWomanId,
+        p_session_type: sessionType,
+        p_session_id: sessionId,
+        p_attended: attended,
+      })
+      setTeamData(data)
+    } catch (e) { flash(e.message, true) }
+  }
+  
   useEffect(() => {
     if (appChoice === 'team' && womanId) loadTeam()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -321,7 +328,8 @@ export default function App() {
         mentorName={state.woman.first_name}
         data={teamData}
         busy={busy}
-        onSubmit={submitTeamReport}
+        onSetWeekday={setSistersConnectDay}
+        onMarkAttendance={markAttendance}
         onSwitchApp={switchApp}
         onSignOut={signOut}
       />
