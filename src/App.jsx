@@ -10,10 +10,11 @@ import History from './screens/History'
 import Admin from './screens/Admin'
 import ReadingHome from './screens/reading/ReadingHome'
 import ChapterView from './screens/reading/ChapterView'
+import MyTeam from './screens/MyTeam'
 import AddEntry from './components/AddEntry'
 
 const STORE = 'imara_woman_id'
-const APP_STORE = 'imara_app_choice'   // 'budget' | 'reading' — which side she landed on last
+const APP_STORE = 'imara_app_choice'   // 'budget' | 'reading' | 'team' — which side she landed on last
 
 export default function App() {
   // The admin console lives on its own route. vercel.json rewrites every path
@@ -23,7 +24,7 @@ export default function App() {
   const [state, setState] = useState(null)      // { woman, periods, entries }
   const [booting, setBooting] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [appChoice, setAppChoiceState] = useState(null)  // null | 'budget' | 'reading'
+  const [appChoice, setAppChoiceState] = useState(null)  // null | 'budget' | 'reading' | 'team'
   const [view, setView] = useState('dashboard') // 'dashboard' | 'summary' | 'settings' | 'history'
   const [sheet, setSheet] = useState(null)      // { mode, line }
   const [toast, setToast] = useState('')
@@ -36,6 +37,9 @@ export default function App() {
   const [readingView, setReadingView] = useState('list')  // 'list' | 'chapter'
   const [readingChapter, setReadingChapter] = useState(null) // { bookId, bookTitle, totalChapters, chapterNumber, data }
 
+  // ---- mentor-team state ----------------------------------------------------
+  const [teamData, setTeamData] = useState(null) // { month, mentor_name, team: [...] }
+
   // Resume her session from this device.
   useEffect(() => {
     if (isAdmin) { setBooting(false); return }
@@ -45,7 +49,7 @@ export default function App() {
       .then((payload) => {
         setState(payload)
         const savedApp = localStorage.getItem(APP_STORE)
-        if (savedApp === 'budget' || savedApp === 'reading') setAppChoiceState(savedApp)
+        if (savedApp === 'budget' || savedApp === 'reading' || savedApp === 'team') setAppChoiceState(savedApp)
       })
       .catch(() => localStorage.removeItem(STORE))
       .finally(() => setBooting(false))
@@ -67,6 +71,7 @@ export default function App() {
   // own function rather than her state. Refreshed whenever her own numbers
   // change, since her position may have moved.
   const womanId = state?.woman?.id
+  const isMentor = Boolean(state?.woman?.is_mentor)
   const entryCount = state?.entries?.length ?? 0
   const savingPct = state?.woman?.pct_saving
   const investingPct = state?.woman?.pct_investing
@@ -174,12 +179,14 @@ export default function App() {
     localStorage.removeItem(APP_STORE)
     setState(null); setView('dashboard'); setAppChoiceState(null)
     setReadingBooks([]); setReadingProgress([]); setReadingBoard([]); setReadingView('list'); setReadingChapter(null)
+    setTeamData(null)
   }
 
   const switchApp = () => {
     setAppChoice(null)
     setView('dashboard')
     setReadingView('list'); setReadingChapter(null)
+    setTeamData(null)
   }
 
   const flash = (msg, isError) => {
@@ -249,6 +256,34 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appChoice, womanId])
 
+  // ---- actions: mentor team --------------------------------------------------
+  const loadTeam = useCallback(async () => {
+    if (!womanId) return
+    try {
+      const data = await rpc('imara_mentor_dashboard', { p_mentor_id: womanId })
+      setTeamData(data)
+    } catch (e) { flash(e.message, true) }
+  }, [womanId])
+
+  const submitTeamReport = async (teamWomanId, month, attendedCircle, attendedSisters, notes) => {
+    try {
+      const data = await rpc('imara_mentor_submit_report', {
+        p_mentor_id: womanId,
+        p_woman_id: teamWomanId,
+        p_month: month,
+        p_attended_circle: attendedCircle,
+        p_attended_sisters_connect: attendedSisters,
+        p_notes: notes,
+      })
+      setTeamData(data)
+    } catch (e) { flash(e.message, true); throw e }
+  }
+
+  useEffect(() => {
+    if (appChoice === 'team' && womanId) loadTeam()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appChoice, womanId])
+
   // ---- render ---------------------------------------------------------------
   if (isAdmin) return <Admin />
 
@@ -271,8 +306,24 @@ export default function App() {
     return (
       <AppPicker
         firstName={state.woman.first_name?.toLowerCase()}
+        isMentor={isMentor}
         onSelectBudget={() => setAppChoice('budget')}
         onSelectReading={() => setAppChoice('reading')}
+        onSelectTeam={() => setAppChoice('team')}
+      />
+    )
+  }
+
+  // ---------------------------------------------------------------- My Team
+  if (appChoice === 'team') {
+    return (
+      <MyTeam
+        mentorName={state.woman.first_name}
+        data={teamData}
+        busy={busy}
+        onSubmit={submitTeamReport}
+        onSwitchApp={switchApp}
+        onSignOut={signOut}
       />
     )
   }
@@ -419,6 +470,3 @@ function Misconfigured() {
     </div>
   )
 }
-
-
-const teamData = await rpc('imara_mentor_dashboard', { p_mentor_id: state.woman.id })
