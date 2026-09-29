@@ -815,3 +815,10 @@ function Drilldown({ s, onClose }) {
     </div>
   )
 }
+
+
+const submitTeamReport = (womanId, month, circle, sisters, notes) =>
+  rpc('imara_mentor_submit_report', {
+    p_mentor_id: state.woman.id, p_woman_id: womanId, p_month: month,
+    p_attended_circle: circle, p_attended_sisters_connect: sisters, p_notes: notes,
+  }).then(setTeamData)
