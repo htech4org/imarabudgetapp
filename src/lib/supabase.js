@@ -44,6 +44,11 @@ const MESSAGES = {
   not_a_mentor:        "That account is not flagged as a mentor.",
   not_your_team:       "That woman is not on your team.",
   cannot_self_mentor:  "A mentor can't be assigned as her own mentor.",
+
+  // Circle Meeting
+  bad_weekday:         "Pick a day of the week for your Sisters Connect group.",
+  no_such_session:     "That session could not be found.",
+  bad_session_type:    "Something went wrong recording that attendance.",
 }
 
 // Exported so screens can catch this specific case (e.g. Login switching
