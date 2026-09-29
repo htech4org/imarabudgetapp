@@ -3,6 +3,7 @@ import { CREED } from '../lib/constants'
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August',
   'September','October','November','December']
+const WEEKDAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 
 function monthLabel(iso) {
   if (!iso) return ''
@@ -10,11 +11,19 @@ function monthLabel(iso) {
   return `${MONTH_NAMES[Number(m) - 1]} ${y}`
 }
 
-// Shown to a woman flagged as a mentor. One row per woman on her team, for
-// the currently selected month. Reading and investing are shown as read-only
-// facts pulled from the app itself; attendance is the only thing she fills
-// in and saves, one woman at a time.
-export default function MyTeam({ mentorName, data, busy, onSubmit, onSwitchApp, onSignOut }) {
+function shortDate(iso) {
+  if (!iso) return ''
+  const d = new Date(`${iso}T00:00:00`)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// Shown to a woman flagged as a mentor. Imara Circle meets every Tuesday,
+// same for everyone; Sisters Connect meets weekly too, but on whichever day
+// she picks for her own group below. Reading and investing stay as read-only
+// facts pulled from the app itself. Attendance is per specific date — she
+// taps a date chip to mark whether that woman was there, one tap per
+// session, no separate save step.
+export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAttendance, onSwitchApp, onSignOut }) {
   if (!data) {
     return (
       <div className="loading-wrap">
@@ -24,7 +33,7 @@ export default function MyTeam({ mentorName, data, busy, onSubmit, onSwitchApp, 
     )
   }
 
-  const { month, team } = data
+  const { month, team, sisters_connect_weekday } = data
 
   return (
     <div className="shell fade-in">
@@ -37,6 +46,8 @@ export default function MyTeam({ mentorName, data, busy, onSubmit, onSwitchApp, 
       </div>
 
       <div className="pad" style={{ paddingTop: 24 }}>
+        <SistersConnectSetup weekday={sisters_connect_weekday} busy={busy} onSet={onSetWeekday} />
+
         {team.length === 0 ? (
           <div className="empty-state">
             <p className="small muted">
@@ -46,7 +57,13 @@ export default function MyTeam({ mentorName, data, busy, onSubmit, onSwitchApp, 
         ) : (
           <div className="stack" style={{ gap: 12 }}>
             {team.map((w) => (
-              <TeamRow key={w.woman_id} woman={w} month={month} busy={busy} onSubmit={onSubmit} />
+              <TeamRow
+                key={w.woman_id}
+                woman={w}
+                busy={busy}
+                onMark={onMarkAttendance}
+                hasSistersConnect={sisters_connect_weekday != null}
+              />
             ))}
           </div>
         )}
@@ -64,29 +81,57 @@ export default function MyTeam({ mentorName, data, busy, onSubmit, onSwitchApp, 
   )
 }
 
-function TeamRow({ woman, month, busy, onSubmit }) {
-  const [circle, setCircle] = useState(Boolean(woman.attended_circle))
-  const [sisters, setSisters] = useState(Boolean(woman.attended_sisters_connect))
-  const [notes, setNotes] = useState(woman.notes || '')
-  const [saved, setSaved] = useState(Boolean(woman.reported_at))
-  const [dirty, setDirty] = useState(false)
+function SistersConnectSetup({ weekday, busy, onSet }) {
+  const [editing, setEditing] = useState(weekday == null)
+  const [choice, setChoice] = useState(weekday ?? 3)
 
+  if (!editing) {
+    return (
+      <div className="row-between" style={{ marginBottom: 18, flexWrap: 'wrap', gap: 6 }}>
+        <span className="tiny muted">Your Sisters Connect group meets on {WEEKDAYS[weekday]}s</span>
+        <button className="btn-link" onClick={() => setEditing(true)}>Change</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 18 }}>
+      <p className="small" style={{ fontWeight: 600, marginBottom: 10 }}>
+        Which day does your Sisters Connect group meet?
+      </p>
+      <p className="tiny muted" style={{ marginBottom: 12 }}>
+        This sets up every session date for the rest of the quarter automatically,
+        so you only need to pick it once.
+      </p>
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <select
+          className="input" style={{ maxWidth: 200 }}
+          value={choice}
+          onChange={(e) => setChoice(Number(e.target.value))}
+        >
+          {WEEKDAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
+        </select>
+        <button
+          className="btn btn-sm btn-primary" disabled={busy}
+          onClick={async () => { await onSet(choice); setEditing(false) }}
+        >
+          Save
+        </button>
+        {weekday != null && <button className="btn-link" onClick={() => setEditing(false)}>Cancel</button>}
+      </div>
+    </div>
+  )
+}
+
+function TeamRow({ woman, busy, onMark, hasSistersConnect }) {
   const cur = woman.currency || '₦'
   const invested = Number(woman.invested_amount) > 0
   const readDays = Number(woman.reading_active_days) || 0
   const chaptersPassed = Number(woman.chapters_passed) || 0
 
-  const save = async () => {
-    await onSubmit(woman.woman_id, month, circle, sisters, notes)
-    setSaved(true); setDirty(false)
-  }
-
   return (
     <div className="card">
-      <div className="row-between" style={{ alignItems: 'flex-start' }}>
-        <span className="small" style={{ fontWeight: 700, fontSize: 15 }}>{woman.first_name}</span>
-        {saved && !dirty && <span className="tag tag-good">Filed</span>}
-      </div>
+      <span className="small" style={{ fontWeight: 700, fontSize: 15 }}>{woman.first_name}</span>
 
       {/* ---- Auto-pulled facts ---- */}
       <div className="row" style={{ gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
@@ -98,37 +143,43 @@ function TeamRow({ woman, month, busy, onSubmit }) {
         </span>
       </div>
 
-      {/* ---- Manual attendance ---- */}
-      <div className="stack-s" style={{ marginTop: 14 }}>
-        <label className="row" style={{ gap: 9, cursor: 'pointer' }}>
-          <input type="checkbox" checked={circle}
-            onChange={(e) => { setCircle(e.target.checked); setDirty(true); setSaved(false) }} />
-          <span className="small">Attended Imara Circle</span>
-        </label>
-        <label className="row" style={{ gap: 9, cursor: 'pointer' }}>
-          <input type="checkbox" checked={sisters}
-            onChange={(e) => { setSisters(e.target.checked); setDirty(true); setSaved(false) }} />
-          <span className="small">Attended Sisters Connect</span>
-        </label>
-      </div>
-
-      <div className="field" style={{ marginTop: 10 }}>
-        <textarea
-          className="textarea" placeholder="Notes for admin (optional)"
-          value={notes}
-          onChange={(e) => { setNotes(e.target.value); setDirty(true); setSaved(false) }}
-          style={{ minHeight: 60 }}
+      {/* ---- Per-session attendance ---- */}
+      <SessionRow
+        label="Imara Circle" sessions={woman.circle} sessionType="circle"
+        womanId={woman.woman_id} busy={busy} onMark={onMark}
+      />
+      {hasSistersConnect && (
+        <SessionRow
+          label="Sisters Connect" sessions={woman.sisters_connect} sessionType="sisters_connect"
+          womanId={woman.woman_id} busy={busy} onMark={onMark}
         />
-      </div>
+      )}
+    </div>
+  )
+}
 
-      <button
-        className={`btn btn-sm ${dirty ? 'btn-primary' : 'btn-soft'}`}
-        style={{ marginTop: 10 }}
-        disabled={busy || !dirty}
-        onClick={save}
-      >
-        {busy ? 'Saving…' : dirty ? 'Save report' : 'Saved'}
-      </button>
+function SessionRow({ label, sessions, sessionType, womanId, busy, onMark }) {
+  return (
+    <div style={{ marginTop: 13 }}>
+      <p className="tiny muted" style={{ marginBottom: 7 }}>{label}</p>
+      {sessions.length === 0 ? (
+        <p className="tiny" style={{ color: 'var(--text-soft)' }}>No sessions yet this month.</p>
+      ) : (
+        <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+          {sessions.map((s) => (
+            <button
+              key={s.session_id}
+              type="button"
+              className={`cat-chip ${s.attended ? 'on' : ''}`}
+              disabled={busy}
+              onClick={() => onMark(womanId, sessionType, s.session_id, !s.attended)}
+              title={s.attended ? 'Marked present — tap to undo' : 'Tap if she was there'}
+            >
+              {s.attended ? '✓ ' : ''}{shortDate(s.session_date)}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
