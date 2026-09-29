@@ -55,12 +55,15 @@ export default function MentorsConsole({
 
   return (
     <div className="stack" style={{ gap: 18 }}>
-      <div className="row" style={{ gap: 8 }}>
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         <button className={`btn-sm ${tab === 'mentors' ? 'btn-primary' : 'btn-soft'}`} onClick={() => setTab('mentors')}>
           Mentors ({mentors.length})
         </button>
         <button className={`btn-sm ${tab === 'team' ? 'btn-primary' : 'btn-soft'}`} onClick={() => setTab('team')}>
           Assign teams
+        </button>
+        <button className={`btn-sm ${tab === 'rosters' ? 'btn-primary' : 'btn-soft'}`} onClick={() => setTab('rosters')}>
+          Rosters
         </button>
         <button className={`btn-sm ${tab === 'overview' ? 'btn-primary' : 'btn-soft'}`} onClick={() => setTab('overview')}>
           This month
@@ -143,6 +146,43 @@ export default function MentorsConsole({
             ))}
             {filteredWomen.length === 0 && <p className="small muted">No matches.</p>}
           </div>
+        </div>
+      )}
+
+      {tab === 'rosters' && (
+        <div className="stack" style={{ gap: 12 }}>
+          <p className="tiny muted">
+            Every mentor, with who's currently on her team.
+          </p>
+          {mentors.length === 0 ? (
+            <div className="empty-state">
+              <p className="small muted">No one is flagged as a mentor yet — start on the Mentors tab.</p>
+            </div>
+          ) : (
+            mentors.map((m) => {
+              const team = women.filter((w) => w.mentor_id === m.mentor_id)
+              return (
+                <div className="card" key={m.mentor_id}>
+                  <div className="row-between">
+                    <span className="small" style={{ fontWeight: 700 }}>{m.first_name}</span>
+                    <span className="tag tag-good">{team.length} on team</span>
+                  </div>
+                  {team.length === 0 ? (
+                    <p className="tiny muted" style={{ marginTop: 8 }}>No one assigned to her yet.</p>
+                  ) : (
+                    <div className="stack-s" style={{ marginTop: 10 }}>
+                      {team.map((w) => (
+                        <div className="row-between" key={w.woman_id}>
+                          <span className="small">{w.first_name}</span>
+                          <span className="tiny muted">{w.phone || w.email || '—'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
         </div>
       )}
 
