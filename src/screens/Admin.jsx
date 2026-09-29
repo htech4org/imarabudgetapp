@@ -6,6 +6,7 @@ import { money, moneyShort, pct, shortDate } from '../lib/format'
 import EntryList from '../components/EntryList'
 import Leaderboard from '../components/Leaderboard'
 import ReadingLeaderboard from '../components/ReadingLeaderboard'
+import MentorsConsole from './MentorsConsole'
 
 const KEY = 'imara_admin_pw'
 
@@ -73,7 +74,7 @@ export default function Admin() {
 // ---------------------------------------------------------------------------
 
 function Console({ data, password, onRefresh, busy, onLock }) {
-  const [tab, setTab] = useState('budget')   // 'budget' | 'reading'
+  const [tab, setTab] = useState('budget')   // 'budget' | 'reading' | 'mentors'
   const [query, setQuery] = useState('')
   const [archFilter, setArchFilter] = useState('all')
   const [openId, setOpenId] = useState(null)
@@ -110,15 +111,18 @@ function Console({ data, password, onRefresh, busy, onLock }) {
           </div>
         </div>
         <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: -4 }}>
-          <div className="type-toggle" style={{ maxWidth: 320 }}>
+          <div className="type-toggle" style={{ maxWidth: 460 }}>
             <button className={tab === 'budget' ? 'on' : ''} onClick={() => setTab('budget')}>Budget</button>
             <button className={tab === 'reading' ? 'on' : ''} onClick={() => setTab('reading')}>Book Reading</button>
+            <button className={tab === 'mentors' ? 'on' : ''} onClick={() => setTab('mentors')}>Mentors</button>
           </div>
         </div>
       </div>
 
       {tab === 'reading' ? (
         <ReadingConsole password={password} />
+      ) : tab === 'mentors' ? (
+        <MentorsTab password={password} />
       ) : (
       <div className="admin">
         {/* ---- Headline metrics ---- */}
@@ -378,6 +382,70 @@ function Metric({ k, v, s, tone }) {
 }
 
 // ---------------------------------------------------------------------------
+//  Mentors tab
+// ---------------------------------------------------------------------------
+
+// Owns all the data-fetching for the mentor system and hands it down to
+// MentorsConsole, which is purely presentational. Kept separate the same
+// way ReadingConsole is kept separate below — one tab, one self-contained
+// piece of state, no interference with the budget or reading tabs.
+function MentorsTab({ password }) {
+  const [mentors, setMentors] = useState([])
+  const [women, setWomen] = useState([])
+  const [overview, setOverview] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const loadMentors = () => rpc('imara_admin_mentors_list', { p_admin_password: password }).then(setMentors)
+  const loadWomen = () => rpc('imara_admin_women_for_assignment', { p_admin_password: password }).then(setWomen)
+  const loadOverview = (monthIso) =>
+    rpc('imara_admin_reports_overview', { p_admin_password: password, p_month: monthIso || null })
+      .then((o) => { setOverview(o); return o })
+
+  const refreshAll = async () => {
+    setBusy(true); setError('')
+    try { await Promise.all([loadMentors(), loadWomen(), loadOverview()]) }
+    catch (e) { setError(e.message) }
+    finally { setBusy(false) }
+  }
+
+  const setMentor = async (womanId, isMentor) => {
+    setBusy(true)
+    try {
+      await rpc('imara_admin_set_mentor', { p_admin_password: password, p_woman_id: womanId, p_is_mentor: isMentor })
+      await Promise.all([loadMentors(), loadWomen()])
+    } finally { setBusy(false) }
+  }
+
+  const assignMentor = async (womanId, mentorId) => {
+    setBusy(true)
+    try {
+      await rpc('imara_admin_assign_mentor', { p_admin_password: password, p_woman_id: womanId, p_mentor_id: mentorId })
+      await Promise.all([loadMentors(), loadWomen()])
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="admin">
+      {error && <div className="error-note" style={{ marginBottom: 16 }}>{error}</div>}
+      <div className="panel">
+        <MentorsConsole
+          busy={busy}
+          mentors={mentors}
+          women={women}
+          overview={overview}
+          onRefreshAll={refreshAll}
+          onSetMentor={setMentor}
+          onAssignMentor={assignMentor}
+          onLoadOverview={loadOverview}
+        />
+      </div>
+      <p className="tiny faint center" style={{ marginTop: 30 }}>
+        © IMARA Wealth Trybe · Leading Ladies Foundation
+      </p>
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 //  Reading tab

@@ -4,7 +4,7 @@
 // can skip straight back to whichever side she was last in, if you want that
 // — that's a one-line addition wherever the woman's session state already
 // lives, not something this screen needs to know about.
-export default function AppPicker({ firstName, onSelectBudget, onSelectReading }) {
+export default function AppPicker({ firstName, isMentor, onSelectBudget, onSelectReading, onSelectTeam }) {
   return (
     <div className="shell fade-in">
       <div className="welcome">
@@ -28,6 +28,13 @@ export default function AppPicker({ firstName, onSelectBudget, onSelectReading }
             <span className="picker-tile-title">Book Reading</span>
             <span className="picker-tile-sub">Your current book and chapter tests</span>
           </button>
+
+          {isMentor && (
+            <button className="picker-tile" onClick={onSelectTeam}>
+              <span className="picker-tile-title">my team</span>
+              <span className="picker-tile-sub">File this month's report for your team</span>
+            </button>
+          )}
         </div>
       </div>
 

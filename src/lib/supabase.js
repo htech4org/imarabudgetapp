@@ -39,6 +39,11 @@ const MESSAGES = {
   // Reading tracker
   chapter_locked:      "Finish the chapter before this one first.",
   not_started:          "Start this book before opening a chapter.",
+
+  // Mentor reporting
+  not_a_mentor:        "That account is not flagged as a mentor.",
+  not_your_team:       "That woman is not on your team.",
+  cannot_self_mentor:  "A mentor can't be assigned as her own mentor.",
 }
 
 // Exported so screens can catch this specific case (e.g. Login switching
