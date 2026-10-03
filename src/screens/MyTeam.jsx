@@ -43,6 +43,9 @@ export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAtt
         <p className="tiny" style={{ color: 'rgba(255,226,204,0.66)', marginTop: 8 }}>
           Reporting for {monthLabel(month)}
         </p>
+        <p className="tiny" style={{ color: 'rgba(255,226,204,0.5)', marginTop: 4 }}>
+          Every date this month is shown so you can plan ahead — greyed-out dates haven't happened yet.
+        </p>
       </div>
 
       <div className="pad" style={{ paddingTop: 24 }}>
@@ -163,17 +166,22 @@ function SessionRow({ label, sessions, sessionType, womanId, busy, onMark }) {
     <div style={{ marginTop: 13 }}>
       <p className="tiny muted" style={{ marginBottom: 7 }}>{label}</p>
       {sessions.length === 0 ? (
-        <p className="tiny" style={{ color: 'var(--text-soft)' }}>No sessions yet this month.</p>
+        <p className="tiny" style={{ color: 'var(--text-soft)' }}>No sessions set up yet this month.</p>
       ) : (
         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
           {sessions.map((s) => (
             <button
               key={s.session_id}
               type="button"
-              className={`cat-chip ${s.attended ? 'on' : ''}`}
-              disabled={busy}
+              className={`cat-chip ${s.attended ? 'on' : ''} ${s.future ? 'future' : ''}`}
+              disabled={busy || s.future}
               onClick={() => onMark(womanId, sessionType, s.session_id, !s.attended)}
-              title={s.attended ? 'Marked present — tap to undo' : 'Tap if she was there'}
+              title={
+                s.future
+                  ? "This date hasn't happened yet — you can plan around it, but can't mark it yet"
+                  : s.attended ? 'Marked present — tap to undo' : 'Tap if she was there'
+              }
+              style={s.future ? { opacity: 0.45, cursor: 'default' } : undefined}
             >
               {s.attended ? '✓ ' : ''}{shortDate(s.session_date)}
             </button>
