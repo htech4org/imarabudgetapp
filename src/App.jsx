@@ -11,10 +11,12 @@ import Admin from './screens/Admin'
 import ReadingHome from './screens/reading/ReadingHome'
 import ChapterView from './screens/reading/ChapterView'
 import MyTeam from './screens/MyTeam'
+import Locked from './screens/Locked'
+import Toolkit from './screens/Toolkit'
 import AddEntry from './components/AddEntry'
 
 const STORE = 'imara_woman_id'
-const APP_STORE = 'imara_app_choice'   // 'budget' | 'reading' | 'team' — which side she landed on last
+const APP_STORE = 'imara_app_choice'   // 'budget' | 'reading' | 'team' | 'toolkit' — which side she landed on last
 
 export default function App() {
   // The admin console lives on its own route. vercel.json rewrites every path
@@ -40,6 +42,10 @@ export default function App() {
   // ---- mentor-team state ----------------------------------------------------
   const [teamData, setTeamData] = useState(null) // { month, mentor_name, team: [...] }
 
+  // ---- toolkit + subscription state ------------------------------------------
+  const [toolkitData, setToolkitData] = useState(null)   // { imara, mentors|null }
+  const [renewalInfo, setRenewalInfo] = useState(null)   // { status, paid_until, is_mentor, mentor_name, link }
+
   // Resume her session from this device.
   useEffect(() => {
     if (isAdmin) { setBooting(false); return }
@@ -49,7 +55,7 @@ export default function App() {
       .then((payload) => {
         setState(payload)
         const savedApp = localStorage.getItem(APP_STORE)
-        if (savedApp === 'budget' || savedApp === 'reading' || savedApp === 'team') setAppChoiceState(savedApp)
+        if (savedApp === 'budget' || savedApp === 'reading' || savedApp === 'team' || savedApp === 'toolkit') setAppChoiceState(savedApp)
       })
       .catch(() => localStorage.removeItem(STORE))
       .finally(() => setBooting(false))
@@ -73,6 +79,8 @@ export default function App() {
   const womanId = state?.woman?.id
   const isMentor = Boolean(state?.woman?.is_mentor)
   const entryCount = state?.entries?.length ?? 0
+  const accessStatus = state?.woman?.access_status || 'active'
+  const locked = Boolean(state?.woman) && accessStatus !== 'active'
   const savingPct = state?.woman?.pct_saving
   const investingPct = state?.woman?.pct_investing
   useEffect(() => {
@@ -179,14 +187,14 @@ export default function App() {
     localStorage.removeItem(APP_STORE)
     setState(null); setView('dashboard'); setAppChoiceState(null)
     setReadingBooks([]); setReadingProgress([]); setReadingBoard([]); setReadingView('list'); setReadingChapter(null)
-    setTeamData(null)
+    setTeamData(null); setToolkitData(null); setRenewalInfo(null)
   }
 
   const switchApp = () => {
     setAppChoice(null)
     setView('dashboard')
     setReadingView('list'); setReadingChapter(null)
-    setTeamData(null)
+    setTeamData(null); setToolkitData(null)
   }
 
   const flash = (msg, isError) => {
@@ -257,7 +265,6 @@ export default function App() {
   }, [appChoice, womanId])
 
   // ---- actions: mentor team --------------------------------------------------
- // ---- actions: mentor team --------------------------------------------------
   const loadTeam = useCallback(async () => {
     if (!womanId) return
     try {
@@ -285,11 +292,59 @@ export default function App() {
       setTeamData(data)
     } catch (e) { flash(e.message, true) }
   }
-  
+
   useEffect(() => {
-    if (appChoice === 'team' && womanId) loadTeam()
+    if (appChoice === 'team' && womanId && !locked) loadTeam()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appChoice, womanId])
+  }, [appChoice, womanId, locked])
+
+  // A mentor pastes the Selar payment link for one of her mentees.
+  const setMenteeLink = async (teamWomanId, link) => {
+    try {
+      const data = await rpc('imara_mentor_set_mentee_link', {
+        p_mentor_id: womanId, p_woman_id: teamWomanId, p_link: link,
+      })
+      setTeamData(data)
+      flash('Payment link saved.')
+    } catch (e) { flash(e.message, true); throw e }
+  }
+
+  // ---- actions: subscription + toolkit ---------------------------------------
+  const loadRenewalInfo = useCallback(async () => {
+    if (!womanId) return
+    try { setRenewalInfo(await rpc('imara_renewal_info', { p_woman_id: womanId })) }
+    catch (e) { flash(e.message, true) }
+  }, [womanId])
+
+  useEffect(() => {
+    if (locked) loadRenewalInfo()
+    else setRenewalInfo(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locked, womanId])
+
+  const checkAccessAgain = async () => {
+    try {
+      const next = await run('imara_state', { p_woman_id: womanId })
+      if (next?.woman?.access_status && next.woman.access_status !== 'active') {
+        flash("Not confirmed yet — IMARA admin will confirm your payment shortly.", true)
+        loadRenewalInfo()
+      } else {
+        flash('Welcome back — your access is open.')
+      }
+    } catch (e) { flash(e.message, true) }
+  }
+
+  useEffect(() => {
+    if (appChoice !== 'toolkit' || !womanId || locked) return
+    let cancelled = false
+    rpc('imara_toolkit_links', { p_woman_id: womanId })
+      .then((d) => { if (!cancelled) setToolkitData(d) })
+      .catch((e) => { if (!cancelled) flash(e.message, true) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appChoice, womanId, locked])
+
+  const toastEl = toast ? <Toast message={toast.msg} isError={toast.isError} /> : null
 
   // ---- render ---------------------------------------------------------------
   if (isAdmin) return <Admin />
@@ -309,30 +364,65 @@ export default function App() {
     return <Login onSignup={signup} onLogin={login} onClaim={claim} busy={busy} />
   }
 
+  // ---------------------------------------------------------------- Locked
+  // No active subscription: nothing of hers is shown until IMARA confirms payment.
+  if (locked) {
+    return (
+      <>
+        <Locked
+          firstName={state.woman.first_name?.toLowerCase()}
+          info={renewalInfo}
+          busy={busy}
+          onCheckAgain={checkAccessAgain}
+          onSignOut={signOut}
+        />
+        {toastEl}
+      </>
+    )
+  }
+
   if (!appChoice) {
     return (
-      <AppPicker
-        firstName={state.woman.first_name?.toLowerCase()}
-        isMentor={isMentor}
-        onSelectBudget={() => setAppChoice('budget')}
-        onSelectReading={() => setAppChoice('reading')}
-        onSelectTeam={() => setAppChoice('team')}
-      />
+      <>
+        <AppPicker
+          firstName={state.woman.first_name?.toLowerCase()}
+          isMentor={isMentor}
+          onSelectBudget={() => setAppChoice('budget')}
+          onSelectReading={() => setAppChoice('reading')}
+          onSelectTeam={() => setAppChoice('team')}
+          onSelectToolkit={() => setAppChoice('toolkit')}
+        />
+        {toastEl}
+      </>
+    )
+  }
+
+  // ---------------------------------------------------------------- Toolkit
+  if (appChoice === 'toolkit') {
+    return (
+      <>
+        <Toolkit data={toolkitData} onSwitchApp={switchApp} onSignOut={signOut} />
+        {toastEl}
+      </>
     )
   }
 
   // ---------------------------------------------------------------- My Team
   if (appChoice === 'team') {
     return (
-      <MyTeam
-        mentorName={state.woman.first_name}
-        data={teamData}
-        busy={busy}
-        onSetWeekday={setSistersConnectDay}
-        onMarkAttendance={markAttendance}
-        onSwitchApp={switchApp}
-        onSignOut={signOut}
-      />
+      <>
+        <MyTeam
+          mentorName={state.woman.first_name}
+          data={teamData}
+          busy={busy}
+          onSetWeekday={setSistersConnectDay}
+          onMarkAttendance={markAttendance}
+          onSetMenteeLink={setMenteeLink}
+          onSwitchApp={switchApp}
+          onSignOut={signOut}
+        />
+        {toastEl}
+      </>
     )
   }
 
@@ -340,31 +430,37 @@ export default function App() {
   if (appChoice === 'reading') {
     if (readingView === 'chapter' && readingChapter) {
       return (
-        <ChapterView
-          key={readingChapter.data.chapter_id}
-          bookTitle={readingChapter.bookTitle}
-          chapterNumber={readingChapter.chapterNumber}
-          totalChapters={readingChapter.totalChapters}
-          chapter={readingChapter.data}
-          busy={busy}
-          onSubmitTest={(answers) => submitTest(readingChapter.data.chapter_id, answers)}
-          onNext={nextChapter}
-          onBack={backToReadingList}
-        />
+        <>
+          <ChapterView
+            key={readingChapter.data.chapter_id}
+            bookTitle={readingChapter.bookTitle}
+            chapterNumber={readingChapter.chapterNumber}
+            totalChapters={readingChapter.totalChapters}
+            chapter={readingChapter.data}
+            busy={busy}
+            onSubmitTest={(answers) => submitTest(readingChapter.data.chapter_id, answers)}
+            onNext={nextChapter}
+            onBack={backToReadingList}
+          />
+          {toastEl}
+        </>
       )
     }
     return (
-      <ReadingHome
-        firstName={state.woman.first_name?.toLowerCase()}
-        books={readingBooks}
-        progress={readingProgress}
-        board={readingBoard}
-        busy={busy}
-        onStart={startBook}
-        onOpenChapter={openChapter}
-        onSwitchApp={switchApp}
-        onSignOut={signOut}
-      />
+      <>
+        <ReadingHome
+          firstName={state.woman.first_name?.toLowerCase()}
+          books={readingBooks}
+          progress={readingProgress}
+          board={readingBoard}
+          busy={busy}
+          onStart={startBook}
+          onOpenChapter={openChapter}
+          onSwitchApp={switchApp}
+          onSignOut={signOut}
+        />
+        {toastEl}
+      </>
     )
   }
 
@@ -447,7 +543,7 @@ export default function App() {
         saving={busy}
       />
 
-      {toast && <Toast message={toast.msg} isError={toast.isError} />}
+      {toastEl}
     </>
   )
 }
