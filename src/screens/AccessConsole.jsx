@@ -12,6 +12,8 @@ const LINK_FIELDS = [
   { key: 'mentor_payment_link',  label: 'Mentor payment link (Selar)' },
   { key: 'imara_toolkit_link',   label: 'IMARA Toolkit (Drive folder)' },
   { key: 'mentors_toolkit_link', label: 'Mentors Toolkit (Drive folder)' },
+  { key: 'imara_circle_playlist',     label: 'Imara Circle (YouTube playlist)' },
+  { key: 'imara_investment_playlist', label: 'Imara Investment 101 Classes (YouTube playlist)' },
 ]
 
 // Needs-attention first: expired, then pending, then active, then exempt.
@@ -41,7 +43,7 @@ export default function AccessConsole({
 
   useEffect(() => {
     if (data?.links) setLinkDraft(data.links)
-  }, [data?.links?.mentor_payment_link, data?.links?.imara_toolkit_link, data?.links?.mentors_toolkit_link]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(data?.links)]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const runAction = async (fn, okNote) => {
     setError(''); setNote('')
