@@ -7,6 +7,7 @@ import EntryList from '../components/EntryList'
 import Leaderboard from '../components/Leaderboard'
 import ReadingLeaderboard from '../components/ReadingLeaderboard'
 import MentorsConsole from './MentorsConsole'
+import AccessConsole from './AccessConsole'
 
 const KEY = 'imara_admin_pw'
 
@@ -74,7 +75,7 @@ export default function Admin() {
 // ---------------------------------------------------------------------------
 
 function Console({ data, password, onRefresh, busy, onLock }) {
-  const [tab, setTab] = useState('budget')   // 'budget' | 'reading' | 'mentors'
+  const [tab, setTab] = useState('budget')   // 'budget' | 'reading' | 'mentors' | 'access'
   const [query, setQuery] = useState('')
   const [archFilter, setArchFilter] = useState('all')
   const [openId, setOpenId] = useState(null)
@@ -110,11 +111,12 @@ function Console({ data, password, onRefresh, busy, onLock }) {
             <button className="btn btn-sm btn-soft" onClick={onLock}>Lock</button>
           </div>
         </div>
-        <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: 18 }}>
-          <div className="type-toggle" style={{ maxWidth: 460 }}>
+        <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: -4 }}>
+          <div className="type-toggle" style={{ maxWidth: 580 }}>
             <button className={tab === 'budget' ? 'on' : ''} onClick={() => setTab('budget')}>Budget</button>
             <button className={tab === 'reading' ? 'on' : ''} onClick={() => setTab('reading')}>Book Reading</button>
             <button className={tab === 'mentors' ? 'on' : ''} onClick={() => setTab('mentors')}>Mentors</button>
+            <button className={tab === 'access' ? 'on' : ''} onClick={() => setTab('access')}>Access</button>
           </div>
         </div>
       </div>
@@ -123,6 +125,8 @@ function Console({ data, password, onRefresh, busy, onLock }) {
         <ReadingConsole password={password} />
       ) : tab === 'mentors' ? (
         <MentorsTab password={password} />
+      ) : tab === 'access' ? (
+        <AccessTab password={password} />
       ) : (
       <div className="admin">
         {/* ---- Headline metrics ---- */}
@@ -438,6 +442,53 @@ function MentorsTab({ password }) {
           onSetMentor={setMentor}
           onAssignMentor={assignMentor}
           onLoadOverview={loadOverview}
+        />
+      </div>
+      <p className="tiny faint center" style={{ marginTop: 30 }}>
+        © IMARA Wealth Trybe · Leading Ladies Foundation
+      </p>
+    </div>
+  )
+}
+
+// Subscription access: who has paid, who is exempt, the master lock, and the
+// three links. Owns the fetching; AccessConsole is purely presentational.
+// Action errors are thrown back to AccessConsole, which shows them.
+function AccessTab({ password }) {
+  const [data, setData] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const load = () =>
+    rpc('imara_admin_access_overview', { p_admin_password: password }).then(setData)
+
+  const refresh = async () => {
+    setBusy(true); setError('')
+    try { await load() } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+
+  // Run a write, then reload. Errors propagate to the caller.
+  const act = async (fn, args) => {
+    setBusy(true)
+    try {
+      await rpc(fn, { p_admin_password: password, ...args })
+      await load()
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="admin">
+      {error && <div className="error-note" style={{ marginBottom: 16 }}>{error}</div>}
+      <div className="panel">
+        <AccessConsole
+          busy={busy}
+          data={data}
+          onRefresh={refresh}
+          onMarkPaid={(ids, days) => act('imara_admin_mark_paid', { p_woman_ids: ids, p_days: days })}
+          onSetPaidUntil={(id, iso) => act('imara_admin_set_paid_until', { p_woman_id: id, p_date: iso })}
+          onSetExempt={(id, on) => act('imara_admin_set_exempt', { p_woman_id: id, p_exempt: on })}
+          onSetEnforcement={(on) => act('imara_admin_set_enforcement', { p_on: on })}
+          onSetLink={(key, value) => act('imara_admin_set_link', { p_key: key, p_value: value })}
         />
       </div>
       <p className="tiny faint center" style={{ marginTop: 30 }}>

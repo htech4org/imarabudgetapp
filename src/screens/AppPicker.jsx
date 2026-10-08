@@ -4,7 +4,7 @@
 // can skip straight back to whichever side she was last in, if you want that
 // — that's a one-line addition wherever the woman's session state already
 // lives, not something this screen needs to know about.
-export default function AppPicker({ firstName, isMentor, onSelectBudget, onSelectReading, onSelectTeam }) {
+export default function AppPicker({ firstName, isMentor, onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit }) {
   return (
     <div className="shell fade-in">
       <div className="welcome">
@@ -28,6 +28,15 @@ export default function AppPicker({ firstName, isMentor, onSelectBudget, onSelec
             <span className="picker-tile-title">Book Reading</span>
             <span className="picker-tile-sub">Your current book and chapter tests</span>
           </button>
+
+          {onSelectToolkit && (
+            <button className="picker-tile" onClick={onSelectToolkit}>
+              <span className="picker-tile-title">Toolkit</span>
+              <span className="picker-tile-sub">
+                {isMentor ? 'IMARA Toolkit and Mentors Toolkit' : 'Guides and resources from IMARA'}
+              </span>
+            </button>
+          )}
 
           {isMentor && (
             <button className="picker-tile" onClick={onSelectTeam}>

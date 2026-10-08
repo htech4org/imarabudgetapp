@@ -23,7 +23,7 @@ function shortDate(iso) {
 // facts pulled from the app itself. Attendance is per specific date — she
 // taps a date chip to mark whether that woman was there, one tap per
 // session, no separate save step.
-export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAttendance, onSwitchApp, onSignOut }) {
+export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAttendance, onSetMenteeLink, onSwitchApp, onSignOut }) {
   if (!data) {
     return (
       <div className="loading-wrap">
@@ -65,6 +65,7 @@ export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAtt
                 woman={w}
                 busy={busy}
                 onMark={onMarkAttendance}
+                onSaveLink={onSetMenteeLink}
                 hasSistersConnect={sisters_connect_weekday != null}
               />
             ))}
@@ -126,7 +127,66 @@ function SistersConnectSetup({ weekday, busy, onSet }) {
   )
 }
 
-function TeamRow({ woman, busy, onMark, hasSistersConnect }) {
+function AccessRow({ woman, busy, onSaveLink }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [err, setErr] = useState('')
+  const status = woman.access_status || 'active'
+  const hasLink = Boolean(woman.renewal_link)
+
+  let tag = null
+  if (status === 'active' && woman.paid_until) {
+    tag = <span className="tag tag-good">Access until {shortDate(woman.paid_until)}</span>
+  } else if (status === 'expired') {
+    tag = <span className="tag tag-unassigned">Access ended {shortDate(woman.paid_until)}</span>
+  } else if (status === 'pending') {
+    tag = <span className="tag tag-unassigned">Awaiting payment</span>
+  }
+
+  const save = async () => {
+    setErr('')
+    try {
+      await onSaveLink(woman.woman_id, draft.trim())
+      setEditing(false)
+    } catch (e) {
+      setErr(e.message)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 13 }}>
+      {tag}
+      {!editing ? (
+        <div className="row" style={{ gap: 10, marginTop: tag ? 8 : 0, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className="tiny" style={{ color: hasLink ? 'var(--text-soft)' : undefined }}>
+            {hasLink ? '✓ Payment link added' : 'No payment link for her yet'}
+          </span>
+          <button
+            className="btn-link" disabled={busy}
+            onClick={() => { setDraft(woman.renewal_link || ''); setErr(''); setEditing(true) }}
+          >
+            {hasLink ? 'Edit' : 'Add her payment link'}
+          </button>
+        </div>
+      ) : (
+        <div style={{ marginTop: 8 }}>
+          <div className="row" style={{ gap: 8 }}>
+            <input
+              className="input" style={{ flex: 1, minWidth: 0 }}
+              placeholder="Paste her Selar link (https://…)"
+              value={draft} onChange={(e) => setDraft(e.target.value)}
+            />
+            <button className="btn btn-sm btn-primary" disabled={busy || !draft.trim()} onClick={save}>Save</button>
+            <button className="btn-link" onClick={() => setEditing(false)}>Cancel</button>
+          </div>
+          {err && <div className="error-note" style={{ marginTop: 8 }}>{err}</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TeamRow({ woman, busy, onMark, onSaveLink, hasSistersConnect }) {
   const cur = woman.currency || '₦'
   const invested = Number(woman.invested_amount) > 0
   const readDays = Number(woman.reading_active_days) || 0
@@ -145,6 +205,8 @@ function TeamRow({ woman, busy, onMark, hasSistersConnect }) {
           {invested ? `Invested ${cur}${Number(woman.invested_amount).toLocaleString('en-US')}` : 'No investing logged'}
         </span>
       </div>
+
+      {onSaveLink && <AccessRow woman={woman} busy={busy} onSaveLink={onSaveLink} />}
 
       {/* ---- Per-session attendance ---- */}
       <SessionRow

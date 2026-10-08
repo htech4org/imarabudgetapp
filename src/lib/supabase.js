@@ -48,6 +48,9 @@ const MESSAGES = {
   no_such_session:     "That session could not be found.",
   bad_session_type:    "Something went wrong recording that attendance.",
   session_in_future:   "That session hasn't happened yet — check back on the day.",
+  access_locked:       "Your access has ended. Renew to continue.",
+  bad_link:            "That doesn't look like a valid Selar link — it must start with https:// and be a selar.com or selar.co address.",
+  bad_days:            "Enter a number of days between 1 and 366.",
 }
 
 // Exported so screens can catch this specific case (e.g. Login switching
