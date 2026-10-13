@@ -14,6 +14,10 @@ const LINK_FIELDS = [
   { key: 'mentors_toolkit_link', label: 'Mentors Toolkit (Drive folder)' },
   { key: 'imara_circle_playlist',     label: 'Imara Circle (YouTube playlist)' },
   { key: 'imara_investment_playlist', label: 'Imara Investment 101 Classes (YouTube playlist)' },
+  { key: 'tuesday_circle_link',       label: 'Tuesday · IMARA Circle (Zoom link)' },
+  { key: 'tuesday_circle_meeting_id', label: 'Tuesday · Zoom meeting ID (text)' },
+  { key: 'tuesday_circle_passcode',   label: 'Tuesday · Zoom passcode (text)' },
+  { key: 'tuesday_foundation_link',   label: 'Tuesday · Foundation Arc (YouTube live link)' },
 ]
 
 // Needs-attention first: expired, then pending, then active, then exempt.
@@ -250,7 +254,7 @@ export default function AccessConsole({
           <div className="card">
             <span className="small" style={{ fontWeight: 700 }}>Links</span>
             <p className="tiny muted" style={{ margin: '4px 0 12px', lineHeight: 1.6 }}>
-              Changing these takes effect straight away — no redeploy. Must start with https://
+              Changing these takes effect straight away — no redeploy. Links must start with https://
             </p>
             <div className="stack" style={{ gap: 12 }}>
               {LINK_FIELDS.map(({ key, label }) => (

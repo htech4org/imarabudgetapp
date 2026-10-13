@@ -4,7 +4,10 @@
 // can skip straight back to whichever side she was last in, if you want that
 // — that's a one-line addition wherever the woman's session state already
 // lives, not something this screen needs to know about.
-export default function AppPicker({ firstName, isMentor, onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit }) {
+export default function AppPicker({ firstName, isMentor, onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday }) {
+  // Tuesday in Lagos, whatever timezone her phone is in. The links themselves
+  // are only released by the server on a Tuesday, so this only drives the look.
+  const isTuesday = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Lagos', weekday: 'long' }).format(new Date()) === 'Tuesday'
   return (
     <div className="shell fade-in">
       <div className="welcome">
@@ -28,6 +31,20 @@ export default function AppPicker({ firstName, isMentor, onSelectBudget, onSelec
             <span className="picker-tile-title">Book Reading</span>
             <span className="picker-tile-sub">Your current book and chapter tests</span>
           </button>
+
+          {onSelectTuesday && (
+            <button
+              className="picker-tile"
+              onClick={isTuesday ? onSelectTuesday : undefined}
+              disabled={!isTuesday}
+              style={isTuesday ? undefined : { opacity: 0.5, cursor: 'default' }}
+            >
+              <span className="picker-tile-title">Tuesday Class</span>
+              <span className="picker-tile-sub">
+                {isTuesday ? 'IMARA Circle and Foundation Arc are live today' : 'Opens on Tuesdays'}
+              </span>
+            </button>
+          )}
 
           {onSelectToolkit && (
             <button className="picker-tile" onClick={onSelectToolkit}>
