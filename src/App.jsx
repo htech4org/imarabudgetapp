@@ -362,6 +362,8 @@ export default function App() {
     rpc('imara_tuesday_log_click', { p_woman_id: womanId, p_class: classKey }).catch(() => {})
   }
 
+  const homeBar = <HomeBar onHome={switchApp} />
+
   const toastEl = toast ? <Toast message={toast.msg} isError={toast.isError} /> : null
 
   // ---- render ---------------------------------------------------------------
@@ -420,6 +422,7 @@ export default function App() {
   if (appChoice === 'toolkit') {
     return (
       <>
+        {homeBar}
         <Toolkit data={toolkitData} onSwitchApp={switchApp} onSignOut={signOut} />
         {toastEl}
       </>
@@ -430,6 +433,7 @@ export default function App() {
   if (appChoice === 'tuesday') {
     return (
       <>
+        {homeBar}
         <TuesdayClass data={tuesdayData} onJoin={logClassTap} onSwitchApp={switchApp} onSignOut={signOut} />
         {toastEl}
       </>
@@ -440,6 +444,7 @@ export default function App() {
   if (appChoice === 'team') {
     return (
       <>
+        {homeBar}
         <MyTeam
           mentorName={state.woman.first_name}
           data={teamData}
@@ -460,6 +465,7 @@ export default function App() {
     if (readingView === 'chapter' && readingChapter) {
       return (
         <>
+          {homeBar}
           <ChapterView
             key={readingChapter.data.chapter_id}
             bookTitle={readingChapter.bookTitle}
@@ -477,6 +483,7 @@ export default function App() {
     }
     return (
       <>
+        {homeBar}
         <ReadingHome
           firstName={state.woman.first_name?.toLowerCase()}
           books={readingBooks}
@@ -518,6 +525,7 @@ export default function App() {
 
   return (
     <>
+      {homeBar}
       {effectiveView === 'settings' ? (
         <Settings
           woman={state.woman}
@@ -574,6 +582,29 @@ export default function App() {
 
       {toastEl}
     </>
+  )
+}
+
+// A slim bar pinned to the top of every screen after the app picker, so she can
+// get back to the picker in one tap instead of scrolling to the footer.
+function HomeBar({ onHome }) {
+  return (
+    <div style={{
+      position: 'sticky', top: 0, zIndex: 60,
+      background: 'var(--maroon-900)', borderBottom: '1px solid rgba(255,226,204,0.14)',
+    }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '8px 16px' }}>
+        <button
+          type="button" onClick={onHome}
+          style={{
+            background: 'none', border: 'none', padding: '4px 0', cursor: 'pointer',
+            color: 'var(--peach)', font: 'inherit', fontSize: 13.5, fontWeight: 600,
+          }}
+        >
+          ← Home
+        </button>
+      </div>
+    </div>
   )
 }
 
