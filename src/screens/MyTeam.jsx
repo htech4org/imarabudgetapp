@@ -213,12 +213,30 @@ function TeamRow({ woman, busy, onMark, onSaveLink, hasSistersConnect }) {
         label="Imara Circle" sessions={woman.circle} sessionType="circle"
         womanId={woman.woman_id} busy={busy} onMark={onMark}
       />
+      <ClassJoins joins={woman.class_joins} />
       {hasSistersConnect && (
         <SessionRow
           label="Sisters Connect" sessions={woman.sisters_connect} sessionType="sisters_connect"
           womanId={woman.woman_id} busy={busy} onMark={onMark}
         />
       )}
+    </div>
+  )
+}
+
+// A hint from the app, not a record of attendance: the time she tapped the
+// class link between 8pm and 10pm on each past Tuesday. Mentors still confirm.
+function ClassJoins({ joins }) {
+  const rows = (joins || []).filter((j) => j.circle_at || j.foundation_at)
+  if (rows.length === 0) return null
+  return (
+    <div style={{ marginTop: 8 }}>
+      {rows.map((j) => (
+        <p key={j.session_date} className="tiny" style={{ color: 'var(--text-soft)', lineHeight: 1.7 }}>
+          {shortDate(j.session_date)}:{' '}
+          {[j.circle_at && `Zoom ${j.circle_at}`, j.foundation_at && `YouTube ${j.foundation_at}`].filter(Boolean).join(' · ')}
+        </p>
+      ))}
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { CREED } from '../lib/constants'
 // (imara_tuesday_class), which only returns them to a woman with active access
 // and only on a Tuesday (Lagos time). On any other day `data.is_tuesday` is
 // false and there is nothing to open.
-export default function TuesdayClass({ data, onSwitchApp, onSignOut }) {
+export default function TuesdayClass({ data, onJoin, onSwitchApp, onSignOut }) {
   // The Zoom ID and passcode appear only after she taps Join, as a backup in
   // case the link opens with an error.
   const [joined, setJoined] = useState(false)
@@ -36,7 +36,7 @@ export default function TuesdayClass({ data, onSwitchApp, onSignOut }) {
             <div className="card">
               <span className="small" style={{ fontWeight: 700, fontSize: 15 }}>IMARA CIRCLE</span>
               <p className="tiny muted" style={{ margin: '6px 0 12px', lineHeight: 1.7 }}>Live on Zoom.</p>
-              <JoinButton href={data.circle?.link} label="Join on Zoom" onClick={() => setJoined(true)} />
+              <JoinButton href={data.circle?.link} label="Join on Zoom" onClick={() => { setJoined(true); onJoin?.('circle') }} />
               {joined && (data.circle?.meeting_id || data.circle?.passcode) && (
                 <div style={{ marginTop: 14 }}>
                   <p className="tiny muted" style={{ marginBottom: 6, lineHeight: 1.7 }}>
@@ -53,8 +53,12 @@ export default function TuesdayClass({ data, onSwitchApp, onSignOut }) {
             <div className="card">
               <span className="small" style={{ fontWeight: 700, fontSize: 15 }}>FOUNDATION ARC</span>
               <p className="tiny muted" style={{ margin: '6px 0 14px', lineHeight: 1.7 }}>Live on YouTube.</p>
-              <JoinButton href={data.foundation?.link} label="Watch Live on YouTube" />
+              <JoinButton href={data.foundation?.link} label="Watch Live on YouTube" onClick={() => onJoin?.('foundation')} />
             </div>
+
+            <p className="tiny muted" style={{ lineHeight: 1.7 }}>
+              Joining a class from here is logged with the time, so your mentor can see you came.
+            </p>
           </div>
         )}
       </div>

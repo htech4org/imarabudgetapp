@@ -454,6 +454,67 @@ function MentorsTab({ password }) {
 // Subscription access: who has paid, who is exempt, the master lock, and the
 // three links. Owns the fetching; AccessConsole is purely presentational.
 // Action errors are thrown back to AccessConsole, which shows them.
+// Who tapped a Tuesday class link, and when. A tap between 8pm and 10pm Lagos
+// counts as joined; anything else that day is only counted, not timed.
+function ClassTaps({ password }) {
+  const [date, setDate] = useState('')          // '' = latest Tuesday
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const load = async (d) => {
+    setLoading(true); setError('')
+    try {
+      setData(await rpc('imara_admin_class_clicks', { p_admin_password: password, p_date: d || null }))
+    } catch (e) { setError(e.message) } finally { setLoading(false) }
+  }
+  useEffect(() => { load(date) }, [date]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const rows = data?.rows || []
+  return (
+    <div className="panel" style={{ marginBottom: 18 }}>
+      <div className="row-between" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span className="small" style={{ fontWeight: 700 }}>
+          Tuesday class taps{data?.date ? ` · ${data.date}` : ''}
+        </span>
+        <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+          <input
+            className="input" type="date" style={{ maxWidth: 170 }}
+            value={date || data?.date || ''} onChange={(e) => setDate(e.target.value)}
+          />
+          <button className="btn btn-sm btn-soft" onClick={() => load(date)} disabled={loading}>
+            {loading ? '…' : 'Refresh'}
+          </button>
+        </div>
+      </div>
+      <p className="tiny muted" style={{ margin: '6px 0 12px', lineHeight: 1.6 }}>
+        First tap between 8pm and 10pm Lagos time. A tap shows she tried to join, not that she stayed.
+      </p>
+      {error && <div className="error-note">{error}</div>}
+      {!error && rows.length === 0 && <p className="small muted">No taps recorded for this day.</p>}
+      {rows.length > 0 && (
+        <div className="stack" style={{ gap: 6 }}>
+          <p className="tiny muted">
+            {rows.filter((r) => r.circle_at).length} on Zoom · {rows.filter((r) => r.foundation_at).length} on YouTube
+          </p>
+          {rows.map((r) => (
+            <div key={r.woman_id} className="row-between" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <span className="small">
+                {r.first_name}
+                {r.mentor_name ? <span className="muted"> · {r.mentor_name}</span> : null}
+              </span>
+              <span className="tiny muted">
+                {[r.circle_at && `Zoom ${r.circle_at}`, r.foundation_at && `YouTube ${r.foundation_at}`].filter(Boolean).join(' · ') || 'outside 8–10pm only'}
+                {Number(r.outside_window_taps) > 0 && (r.circle_at || r.foundation_at) ? ` · +${r.outside_window_taps} outside window` : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AccessTab({ password }) {
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -479,6 +540,7 @@ function AccessTab({ password }) {
   return (
     <div className="admin">
       {error && <div className="error-note" style={{ marginBottom: 16 }}>{error}</div>}
+      <ClassTaps password={password} />
       <div className="panel">
         <AccessConsole
           busy={busy}
