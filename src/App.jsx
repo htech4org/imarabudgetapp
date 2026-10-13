@@ -13,6 +13,7 @@ import ChapterView from './screens/reading/ChapterView'
 import MyTeam from './screens/MyTeam'
 import Locked from './screens/Locked'
 import Toolkit from './screens/Toolkit'
+import TuesdayClass from './screens/TuesdayClass'
 import AddEntry from './components/AddEntry'
 
 const STORE = 'imara_woman_id'
@@ -44,7 +45,8 @@ export default function App() {
 
   // ---- toolkit + subscription state ------------------------------------------
   const [toolkitData, setToolkitData] = useState(null)   // { imara, mentors|null }
-  const [renewalInfo, setRenewalInfo] = useState(null)   // { status, paid_until, is_mentor, mentor_name, link }
+  const [tuesdayData, setTuesdayData] = useState(null)  // { is_tuesday, circle, foundation }
+  const [renewalInfo, setRenewalInfo] = useState(null)  // { status, paid_until, is_mentor, mentor_name, link }
 
   // Resume her session from this device.
   useEffect(() => {
@@ -187,14 +189,14 @@ export default function App() {
     localStorage.removeItem(APP_STORE)
     setState(null); setView('dashboard'); setAppChoiceState(null)
     setReadingBooks([]); setReadingProgress([]); setReadingBoard([]); setReadingView('list'); setReadingChapter(null)
-    setTeamData(null); setToolkitData(null); setRenewalInfo(null)
+    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null)
   }
 
   const switchApp = () => {
     setAppChoice(null)
     setView('dashboard')
     setReadingView('list'); setReadingChapter(null)
-    setTeamData(null); setToolkitData(null)
+    setTeamData(null); setToolkitData(null); setTuesdayData(null)
   }
 
   const flash = (msg, isError) => {
@@ -344,7 +346,17 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appChoice, womanId, locked])
 
-  const toastEl = toast ? <Toast message={toast.msg} isError={toast.isError} /> : null
+  useEffect(() => {
+    if (appChoice !== 'tuesday' || !womanId || locked) return
+    let cancelled = false
+    rpc('imara_tuesday_class', { p_woman_id: womanId })
+      .then((d) => { if (!cancelled) setTuesdayData(d) })
+      .catch((e) => { if (!cancelled) flash(e.message, true) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appChoice, womanId, locked])
+
+  const toastEl =toast ? <Toast message={toast.msg} isError={toast.isError} /> : null
 
   // ---- render ---------------------------------------------------------------
   if (isAdmin) return <Admin />
@@ -391,6 +403,7 @@ export default function App() {
           onSelectReading={() => setAppChoice('reading')}
           onSelectTeam={() => setAppChoice('team')}
           onSelectToolkit={() => setAppChoice('toolkit')}
+          onSelectTuesday={() => setAppChoice('tuesday')}
         />
         {toastEl}
       </>
@@ -402,6 +415,16 @@ export default function App() {
     return (
       <>
         <Toolkit data={toolkitData} onSwitchApp={switchApp} onSignOut={signOut} />
+        {toastEl}
+      </>
+    )
+  }
+
+  // ---------------------------------------------------------- Tuesday Class
+  if (appChoice === 'tuesday') {
+    return (
+      <>
+        <TuesdayClass data={tuesdayData} onSwitchApp={switchApp} onSignOut={signOut} />
         {toastEl}
       </>
     )
