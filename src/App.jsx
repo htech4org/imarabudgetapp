@@ -356,7 +356,13 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appChoice, womanId, locked])
 
-  const toastEl =toast ? <Toast message={toast.msg} isError={toast.isError} /> : null
+  // Fire-and-forget: record that she tapped a class link. Never blocks the join.
+  const logClassTap = (classKey) => {
+    if (!womanId) return
+    rpc('imara_tuesday_log_click', { p_woman_id: womanId, p_class: classKey }).catch(() => {})
+  }
+
+  const toastEl = toast ? <Toast message={toast.msg} isError={toast.isError} /> : null
 
   // ---- render ---------------------------------------------------------------
   if (isAdmin) return <Admin />
@@ -424,7 +430,7 @@ export default function App() {
   if (appChoice === 'tuesday') {
     return (
       <>
-        <TuesdayClass data={tuesdayData} onSwitchApp={switchApp} onSignOut={signOut} />
+        <TuesdayClass data={tuesdayData} onJoin={logClassTap} onSwitchApp={switchApp} onSignOut={signOut} />
         {toastEl}
       </>
     )
