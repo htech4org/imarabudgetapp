@@ -374,17 +374,24 @@ export default function App() {
     return () => { cancelled = true }
   }, [appChoice, womanId, locked])
 
-  // Renewal reminder: shown on Home from 8 days before her access ends
-  // (25 Oct for a 2 Nov end date), until it ends.
+  // Renewal reminder: shown on Home from the 25th of every month until her
+  // access ends, provided her end date is in the coming days (so someone paid
+  // up to December doesn't see it in October).
   const paidUntil = state?.woman?.paid_until || null
   const exempt = Boolean(state?.woman?.access_exempt)
   const renewalDaysLeft = useMemo(() => {
     if (!paidUntil || exempt) return null
-    const a = new Date(`${today()}T00:00:00`), b = new Date(`${String(paidUntil).slice(0, 10)}T00:00:00`)
-    return Math.round((b - a) / 86400000)
+    const t = today()
+    const now = new Date(`${t}T00:00:00`)
+    const end = new Date(`${String(paidUntil).slice(0, 10)}T00:00:00`)
+    const y = Number(t.slice(0, 4)), m = Number(t.slice(5, 7)) - 1, d = Number(t.slice(8, 10))
+    const windowStart = d >= 25 ? new Date(y, m, 25) : new Date(y, m - 1, 25)   // most recent 25th
+    const daysLeft = Math.round((end - now) / 86400000)
+    const reached = Math.round((end - windowStart) / 86400000)
+    return daysLeft >= 1 && reached <= 16 ? daysLeft : null
   }, [paidUntil, exempt])
   useEffect(() => {
-    if (appChoice || !womanId || locked || renewalDaysLeft == null || renewalDaysLeft > 8 || renewalDaysLeft < 0) { setHomeRenewal(null); return }
+    if (appChoice || !womanId || locked || renewalDaysLeft == null) { setHomeRenewal(null); return }
     let cancelled = false
     rpc('imara_renewal_info', { p_woman_id: womanId })
       .then((d) => { if (!cancelled) setHomeRenewal({ ...d, daysLeft: renewalDaysLeft }) })
@@ -479,6 +486,13 @@ export default function App() {
         {toastEl}
       </>
     )
+  }
+
+  // ------------------------------------------------------------ Archetype
+  // Everyone picks her archetype once, on first login, whichever side of the
+  // app she plans to use (it used to be asked only inside the budget tracker).
+  if (!state.woman.archetype) {
+    return <ArchetypePick name={state.woman.first_name} onPick={pickArchetype} busy={busy} />
   }
 
   if (!appChoice) {
