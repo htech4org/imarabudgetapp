@@ -216,16 +216,17 @@ export function currentStreak(period, entries = []) {
 // ---------------------------------------------------------------------------
 
 /**
- * Saver and Investor of the Month, ranked on how close each woman is to HER
- * OWN target — her Saving ÷ (her IN × her saving %) × 100. Because it is a
- * percentage of a personal target rather than an amount, a woman on a small
- * income can top the board, and nobody's income is inferable from it.
+ * Saver and Investor of the Month, ranked on the share of her own income she
+ * moved to Saving / Investing — her Saving ÷ her IN × 100. Because it is a
+ * percentage of her own income rather than an amount, a woman on a small
+ * income can top the board, and nobody's income is inferable from it. It is
+ * capped at 100 so a one-off large move can't dominate the board.
  *
  * "The month" is each woman's own rolling 30-day period. They start on
- * different days and that is fine — everyone is measured against her own.
+ * different days and that is fine.
  *
- * Left out: anyone with no income logged yet (no target to measure), and
- * anyone who has set that line to 0% (a target of zero has no percentage).
+ * Left out: anyone with no income logged yet (nothing to take a share of).
+ * Her own target % no longer affects the ranking.
  *
  * Ties share a rank, and the rank after a tie skips — 1, 2, 2, 4 — matching
  * the SQL `rank()` the live leaderboard function uses.
@@ -238,12 +239,11 @@ export function leaderboards(women = [], periods = [], entries = [], meId = null
     const { moneyIn } = totals(mine)
     if (moneyIn <= 0) return null
     const build = byBuildLine(mine)
-    const pcts = splitOf(w)
     return {
       name: w.first_name,
       is_you: meId ? w.id === meId : false,
-      saving:    pcts.saving    > 0 ? (build.saving    / (moneyIn * pcts.saving    / 100)) * 100 : null,
-      investing: pcts.investing > 0 ? (build.investing / (moneyIn * pcts.investing / 100)) * 100 : null,
+      saving:    Math.min(100, (build.saving    / moneyIn) * 100),
+      investing: Math.min(100, (build.investing / moneyIn) * 100),
     }
   }).filter(Boolean)
 

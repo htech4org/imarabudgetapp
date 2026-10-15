@@ -206,7 +206,7 @@ function Console({ data, password, onRefresh, busy, onLock }) {
           <div className="panel">
             <Leaderboard
               title="Saver of the month"
-              subtitle="Each woman against her own Saving line, in her own 30-day period"
+              subtitle="Share of income moved to Saving, in each woman's own 30-day period"
               rows={c.boards.saving}
               accent="saving"
               emptyNote="No woman has logged income in an open month yet."
@@ -215,7 +215,7 @@ function Console({ data, password, onRefresh, busy, onLock }) {
           <div className="panel">
             <Leaderboard
               title="Investor of the month"
-              subtitle="Each woman against her own Investing line, in her own 30-day period"
+              subtitle="Share of income moved to Investing, in each woman's own 30-day period"
               rows={c.boards.investing}
               accent="investing"
               emptyNote="No investing targets are running yet."
