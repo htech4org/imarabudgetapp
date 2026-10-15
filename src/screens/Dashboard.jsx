@@ -128,20 +128,20 @@ export default function Dashboard({
             <span className="eyebrow">This month across the trybe</span>
           </div>
           <p className="small muted" style={{ marginBottom: 14, lineHeight: 1.65 }}>
-            Everyone is measured against her own target, not her income — so this is about
-            follow-through, not who earns most. No amounts are shown to anyone.
+            Everyone is ranked by the share of her own income she saved or invested — never by
+            how much she earns, so a smaller income can still lead. No amounts are shown to anyone.
           </p>
           <div className="stack" style={{ gap: 12 }}>
             <Leaderboard
               title="Saver of the month"
-              subtitle="How close each woman is to her own Saving line"
+              subtitle="Share of her income each woman moved to Saving"
               rows={boards?.saving}
               accent="saving"
               emptyNote="Nobody has logged income yet this month, so there is nothing to rank. Yours could be the first."
             />
             <Leaderboard
               title="Investor of the month"
-              subtitle="How close each woman is to her own Investing line"
+              subtitle="Share of her income each woman moved to Investing"
               rows={boards?.investing}
               accent="investing"
               emptyNote="No investing targets are running yet this month."
