@@ -53,6 +53,7 @@ export default function App() {
   const [tuesdayData, setTuesdayData] = useState(null)  // { is_tuesday, circle, foundation }
   const [renewalInfo, setRenewalInfo] = useState(null)  // { status, paid_until, is_mentor, mentor_name, link }
   const [homeReading, setHomeReading] = useState(null)  // imara_home_reading result
+  const [homeRenewal, setHomeRenewal] = useState(null)  // renewal reminder on Home
 
   // Resume her session from this device.
   useEffect(() => {
@@ -215,7 +216,7 @@ export default function App() {
     localStorage.removeItem(APP_STORE)
     setState(null); setView('dashboard'); setAppChoiceState(null)
     setReadingBooks([]); setReadingProgress([]); setReadingBoard([]); setReadingView('list'); setReadingChapter(null)
-    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null); setHomeReading(null)
+    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null); setHomeReading(null); setHomeRenewal(null)
   }
 
   const switchApp = () => {
@@ -373,6 +374,24 @@ export default function App() {
     return () => { cancelled = true }
   }, [appChoice, womanId, locked])
 
+  // Renewal reminder: shown on Home from 8 days before her access ends
+  // (25 Oct for a 2 Nov end date), until it ends.
+  const paidUntil = state?.woman?.paid_until || null
+  const exempt = Boolean(state?.woman?.access_exempt)
+  const renewalDaysLeft = useMemo(() => {
+    if (!paidUntil || exempt) return null
+    const a = new Date(`${today()}T00:00:00`), b = new Date(`${String(paidUntil).slice(0, 10)}T00:00:00`)
+    return Math.round((b - a) / 86400000)
+  }, [paidUntil, exempt])
+  useEffect(() => {
+    if (appChoice || !womanId || locked || renewalDaysLeft == null || renewalDaysLeft > 8 || renewalDaysLeft < 0) { setHomeRenewal(null); return }
+    let cancelled = false
+    rpc('imara_renewal_info', { p_woman_id: womanId })
+      .then((d) => { if (!cancelled) setHomeRenewal({ ...d, daysLeft: renewalDaysLeft }) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [appChoice, womanId, locked, renewalDaysLeft])
+
   const continueReading = async (r) => {
     setAppChoice('reading')
     await openChapter(r.book_id, r.title, r.total_chapters, r.current_chapter)
@@ -473,6 +492,7 @@ export default function App() {
           monthName={new Date().toLocaleDateString('en-US', { month: 'long', timeZone: 'Africa/Lagos' })}
           money={homeMoney}
           reading={homeReading}
+          renewal={homeRenewal}
           onContinueReading={continueReading}
           onSelectBudget={() => setAppChoice('budget')}
           onSelectReading={() => setAppChoice('reading')}

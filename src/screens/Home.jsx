@@ -27,7 +27,7 @@ const lagosNow = () => {
  *   reading  result of imara_home_reading           (null while loading)
  */
 export default function Home({
-  firstName, isMentor, dayOfMonth, daysInMonth, monthName, money: m, reading,
+  firstName, isMentor, dayOfMonth, daysInMonth, monthName, money: m, reading, renewal,
   onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onContinueReading,
 }) {
   const { hour, day, isTuesday } = lagosNow()
@@ -46,6 +46,9 @@ export default function Home({
       </div>
 
       <div className="home-body">
+        {/* ---------------- renewal reminder ---------------- */}
+        {renewal && <RenewalNote renewal={renewal} />}
+
         {/* ---------------- saved + invested ---------------- */}
         <div className="home-card">
           <div className="home-lbl" style={{ marginBottom: 10 }}>This month so far</div>
@@ -126,6 +129,28 @@ export default function Home({
           © IMARA Wealth Trybe · Leading Ladies Foundation
         </div>
       </div>
+    </div>
+  )
+}
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+function RenewalNote({ renewal }) {
+  const [y, m, d] = String(renewal.paid_until).slice(0, 10).split('-')
+  const when = `${Number(d)} ${MONTHS[Number(m) - 1]}`
+  const left = renewal.daysLeft
+  const link = typeof renewal.link === 'string' && renewal.link.startsWith('https://') ? renewal.link : null
+  return (
+    <div className="home-renew">
+      <div>
+        <b>{left <= 1 ? 'your access ends tomorrow' : `your access ends in ${left} days`}</b>
+        <small>
+          Renew before {when} to keep going.
+          {!link && !renewal.is_mentor && (renewal.mentor_name
+            ? ` Your mentor ${renewal.mentor_name} will send you your payment link.`
+            : '')}
+        </small>
+      </div>
+      {link && <a className="home-go" href={link} target="_blank" rel="noopener noreferrer">Renew</a>}
     </div>
   )
 }
@@ -252,6 +277,10 @@ const CSS = `
 .home-live b{font-family:var(--font-display);font-size:17px;text-transform:lowercase;display:block}
 .home-live small{font-size:11.5px;opacity:.86}
 .home-go{background:#fff;color:var(--wine);font-weight:700;font-size:12.5px;padding:8px 13px;border-radius:11px;white-space:nowrap}
+.home-renew{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--cream);border:1px solid var(--peach);border-radius:16px;padding:12px 14px}
+.home-renew b{font-family:var(--font-display);font-size:15.5px;text-transform:lowercase;display:block;color:var(--maroon-900)}
+.home-renew small{font-size:11.5px;color:var(--text-soft);line-height:1.5;display:block;margin-top:2px}
+.home-renew .home-go{background:var(--maroon-900);color:#fff;text-decoration:none}
 .home-sec{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--text-soft);margin:22px 2px 10px}
 .home-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:0!important}
 .home-tile{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px;min-height:98px;display:flex;flex-direction:column;justify-content:space-between;text-align:left;cursor:pointer}
