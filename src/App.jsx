@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { rpc, configured } from './lib/supabase'
-import { today } from './lib/calc'
+import { today, totals, byBuildLine, splitOf } from './lib/calc'
 import Login from './screens/Login'
-import AppPicker from './screens/AppPicker'
+import Home from './screens/Home'
 import ArchetypePick from './screens/ArchetypePick'
 import Dashboard from './screens/Dashboard'
 import Summary from './screens/Summary'
@@ -51,6 +51,7 @@ export default function App() {
   const [skippedRealisation, setSkippedRealisation] = useState([]) // period ids she tapped 'Later' on
   const [tuesdayData, setTuesdayData] = useState(null)  // { is_tuesday, circle, foundation }
   const [renewalInfo, setRenewalInfo] = useState(null)  // { status, paid_until, is_mentor, mentor_name, link }
+  const [homeReading, setHomeReading] = useState(null)  // imara_home_reading result
 
   // Resume her session from this device.
   useEffect(() => {
@@ -213,10 +214,11 @@ export default function App() {
     localStorage.removeItem(APP_STORE)
     setState(null); setView('dashboard'); setAppChoiceState(null)
     setReadingBooks([]); setReadingProgress([]); setReadingBoard([]); setReadingView('list'); setReadingChapter(null)
-    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null)
+    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null); setHomeReading(null)
   }
 
   const switchApp = () => {
+    setHomeReading(null)
     setAppChoice(null)
     setView('dashboard')
     setReadingView('list'); setReadingChapter(null)
@@ -360,6 +362,40 @@ export default function App() {
     } catch (e) { flash(e.message, true) }
   }
 
+  // Home dashboard: her current book and today's reading, refreshed on every return home.
+  useEffect(() => {
+    if (appChoice || !womanId || locked) return
+    let cancelled = false
+    rpc('imara_home_reading', { p_woman_id: womanId })
+      .then((d) => { if (!cancelled) setHomeReading(d || { has_book: false }) })
+      .catch(() => { if (!cancelled) setHomeReading({ has_book: false }) })
+    return () => { cancelled = true }
+  }, [appChoice, womanId, locked])
+
+  const continueReading = async (r) => {
+    setAppChoice('reading')
+    await openChapter(r.book_id, r.title, r.total_chapters, r.current_chapter)
+  }
+
+  // Home dashboard money summary (this month + all months together).
+  const homeMoney = useMemo(() => {
+    if (!state?.woman) return null
+    const w = state.woman
+    const mine = activePeriod ? periodEntries : []
+    const t = totals(mine)
+    const b = byBuildLine(mine)
+    const sp = splitOf(w)
+    const all = byBuildLine(allEntries)
+    return {
+      currency: w.currency,
+      saved: b.saving, invested: b.investing,
+      savingTarget: (t.moneyIn * (sp.saving || 0)) / 100,
+      investingTarget: (t.moneyIn * (sp.investing || 0)) / 100,
+      hasIncome: t.moneyIn > 0,
+      allSaved: all.saving, allInvested: all.investing,
+    }
+  }, [state, activePeriod, periodEntries, allEntries])
+
   useEffect(() => {
     if (appChoice !== 'toolkit' || !womanId || locked) return
     let cancelled = false
@@ -428,9 +464,15 @@ export default function App() {
   if (!appChoice) {
     return (
       <>
-        <AppPicker
-          firstName={state.woman.first_name?.toLowerCase()}
+        <Home
+          firstName={state.woman.first_name}
           isMentor={isMentor}
+          dayOfMonth={Number(today().slice(8, 10))}
+          daysInMonth={new Date(Number(today().slice(0, 4)), Number(today().slice(5, 7)), 0).getDate()}
+          monthName={new Date().toLocaleDateString('en-US', { month: 'long', timeZone: 'Africa/Lagos' })}
+          money={homeMoney}
+          reading={homeReading}
+          onContinueReading={continueReading}
           onSelectBudget={() => setAppChoice('budget')}
           onSelectReading={() => setAppChoice('reading')}
           onSelectTeam={() => setAppChoice('team')}
