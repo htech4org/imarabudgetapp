@@ -62,8 +62,8 @@ export default function App() {
     rpc('imara_state', { p_woman_id: id })
       .then((payload) => {
         setState(payload)
-        const savedApp = localStorage.getItem(APP_STORE)
-        if (savedApp === 'budget' || savedApp === 'reading' || savedApp === 'team' || savedApp === 'toolkit') setAppChoiceState(savedApp)
+        // She always lands on the Home page when she opens the app.
+        localStorage.removeItem(APP_STORE)
       })
       .catch(() => localStorage.removeItem(STORE))
       .finally(() => setBooting(false))
