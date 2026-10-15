@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { rpc, configured } from './lib/supabase'
+import { today } from './lib/calc'
 import Login from './screens/Login'
 import AppPicker from './screens/AppPicker'
 import ArchetypePick from './screens/ArchetypePick'
@@ -15,6 +16,8 @@ import Locked from './screens/Locked'
 import Toolkit from './screens/Toolkit'
 import TuesdayClass from './screens/TuesdayClass'
 import AddEntry from './components/AddEntry'
+import RealisationPrompt from './components/RealisationPrompt'
+import ReviseMonth from './screens/ReviseMonth'
 
 const STORE = 'imara_woman_id'
 const APP_STORE = 'imara_app_choice'   // 'budget' | 'reading' | 'team' | 'toolkit' — which side she landed on last
@@ -45,6 +48,7 @@ export default function App() {
 
   // ---- toolkit + subscription state ------------------------------------------
   const [toolkitData, setToolkitData] = useState(null)   // { imara, mentors|null }
+  const [skippedRealisation, setSkippedRealisation] = useState([]) // period ids she tapped 'Later' on
   const [tuesdayData, setTuesdayData] = useState(null)  // { is_tuesday, circle, foundation }
   const [renewalInfo, setRenewalInfo] = useState(null)  // { status, paid_until, is_mentor, mentor_name, link }
 
@@ -116,6 +120,26 @@ export default function App() {
     () => (shownPeriod ? allEntries.filter((e) => e.period_id === shownPeriod.id) : []),
     [allEntries, shownPeriod]
   )
+  // A month that closed itself at midnight and still needs her one-line realisation.
+  const pendingRealisation = useMemo(
+    () => periods.find((p) => p.status === 'closed' && p.auto_closed && !p.realisation && !skippedRealisation.includes(p.id)) || null,
+    [periods, skippedRealisation]
+  )
+  const saveRealisation = async (periodId, text) => {
+    await run('imara_set_realisation', { p_woman_id: state.woman.id, p_period_id: periodId, p_realisation: text })
+    flash('Saved. Well done.')
+  }
+
+  // A month that closed itself can still be fixed for 3 days (grace_until).
+  const gracePeriod = useMemo(
+    () => periods.find((p) => p.status === 'closed' && p.auto_closed && p.grace_until && p.grace_until >= today()) || null,
+    [periods]
+  )
+  const graceEntries = useMemo(
+    () => (gracePeriod ? allEntries.filter((e) => e.period_id === gracePeriod.id) : []),
+    [allEntries, gracePeriod]
+  )
+
   const pastPeriods = useMemo(
     () => periods.filter((p) => p.id !== shownPeriod?.id),
     [periods, shownPeriod]
@@ -520,13 +544,32 @@ export default function App() {
   // With no month open there is nothing to log into, so the closed workbook is
   // the only sensible place to be — but History and Settings still open, since
   // neither needs a live month.
-  const standalone = view === 'history' || view === 'settings'
+  const standalone = view === 'history' || view === 'settings' || (view === 'revise' && Boolean(gracePeriod))
   const effectiveView = standalone ? view : activePeriod ? view : 'summary'
 
   return (
     <>
       {homeBar}
-      {effectiveView === 'settings' ? (
+      {gracePeriod && effectiveView === 'dashboard' && (
+        <div style={{ background: 'var(--peach)', color: 'var(--maroon-900)', padding: '10px 16px', textAlign: 'center' }}>
+          <span className="small">
+            You can still add or fix entries for the month that just closed.{' '}
+            <button type="button" className="btn-link" style={{ fontWeight: 700 }} onClick={() => setView('revise')}>
+              Fix it
+            </button>
+          </span>
+        </div>
+      )}
+      {effectiveView === 'revise' && gracePeriod ? (
+        <ReviseMonth
+          period={gracePeriod}
+          entries={graceEntries}
+          currency={state.woman.currency}
+          onAdd={(mode) => setSheet({ mode })}
+          onDelete={deleteEntry}
+          onBack={() => setView('dashboard')}
+        />
+      ) : effectiveView === 'settings' ? (
         <Settings
           woman={state.woman}
           entries={periodEntries}
@@ -573,12 +616,21 @@ export default function App() {
         open={Boolean(sheet)}
         onClose={() => setSheet(null)}
         onSave={addEntry}
-        period={shownPeriod}
+        period={view === 'revise' && gracePeriod ? gracePeriod : shownPeriod}
         currency={state.woman.currency}
         mode={sheet?.mode}
         moveLine={sheet?.line}
         saving={busy}
       />
+
+      {pendingRealisation && (
+        <RealisationPrompt
+          period={pendingRealisation}
+          busy={busy}
+          onSave={saveRealisation}
+          onLater={() => setSkippedRealisation((ids) => [...ids, pendingRealisation.id])}
+        />
+      )}
 
       {toastEl}
     </>
