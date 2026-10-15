@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { rpc, configured } from './lib/supabase'
-import { today, totals, byBuildLine, splitOf } from './lib/calc'
+import { today, totals, byBuildLine } from './lib/calc'
+import { splitOf } from './lib/constants'
 import Login from './screens/Login'
 import Home from './screens/Home'
 import ArchetypePick from './screens/ArchetypePick'
