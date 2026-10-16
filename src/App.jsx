@@ -328,6 +328,15 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appChoice, womanId, locked])
 
+  // A mentor pastes ONE Selar payment link for her whole team.
+  const setTeamLink = async (link) => {
+    try {
+      const data = await rpc('imara_mentor_set_team_link', { p_mentor_id: womanId, p_link: link })
+      setTeamData(data)
+      flash(link ? 'Saved. Your team will see this link.' : 'Link removed.')
+    } catch (e) { flash(e.message, true); throw e }
+  }
+
   // A mentor pastes the Selar payment link for one of her mentees.
   const setMenteeLink = async (teamWomanId, link) => {
     try {
@@ -552,7 +561,7 @@ export default function App() {
           busy={busy}
           onSetWeekday={setSistersConnectDay}
           onMarkAttendance={markAttendance}
-          onSetMenteeLink={setMenteeLink}
+          onSetTeamLink={setTeamLink}
           onSwitchApp={switchApp}
           onSignOut={signOut}
         />
