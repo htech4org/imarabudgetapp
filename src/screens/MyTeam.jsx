@@ -51,11 +51,19 @@ export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAtt
       const status = w.access_status || 'active'
       const left = status === 'active' ? daysUntil(w.paid_until) : null
       const notRenewed = status === 'expired' || status === 'pending'
+      // A woman who has not paid is not asked of the mentor: nothing to record,
+      // and she is not "needing attention" either (she is under Not renewed).
+      const tracked = w.tracked !== false && !notRenewed
+      const absences = [...(w.circle || []), ...(w.sisters_connect || [])]
+        .filter((x) => !x.future && x.recorded && !x.attended).length
       return {
         w, circle, sisters, readDays, status, left, notRenewed,
         invested: Boolean(w.invested),
-        toRecord: circle.toRecord + sisters.toRecord,
-        attention: readDays === 0 || !w.invested || notRenewed,
+        tracked,
+        toRecord: tracked ? circle.toRecord + sisters.toRecord : 0,
+        // Needs attention: a paid-up woman who has not read at all this month,
+        // or who has been marked absent from a session.
+        attention: tracked && (readDays === 0 || absences > 0),
       }
     })
   }, [data])
@@ -261,12 +269,12 @@ function Cell({ value, good }) {
   return <div className={`tm-c ${good === true ? 'yes' : good === false ? 'no' : 'mid'}`}>{value}</div>
 }
 
-function SessionCell({ t }) {
+function SessionCell({ t, quiet }) {
   if (t.held === 0) return <Cell value="–" good={false} />
   const all = t.present === t.held && t.toRecord === 0
   return (
     <div className={`tm-c ${all ? 'yes' : t.present === 0 ? 'no' : 'mid'}`}>
-      {t.present}/{t.held}{t.toRecord > 0 && <i className="tm-dot" title={`${t.toRecord} not recorded yet`} />}
+      {t.present}/{t.held}{!quiet && t.toRecord > 0 && <i className="tm-dot" title={`${t.toRecord} not recorded yet`} />}
     </div>
   )
 }
@@ -282,13 +290,18 @@ function TeamRow({ r, busy, open, onToggle, onMark, hasSistersConnect }) {
         </div>
         <Cell value={r.readDays > 0 ? `${r.readDays} day${r.readDays === 1 ? '' : 's'}` : '–'} good={r.readDays > 0} />
         <Cell value={r.invested ? '✓' : '–'} good={r.invested} />
-        <SessionCell t={r.circle} />
-        {hasSistersConnect ? <SessionCell t={r.sisters} /> : <Cell value="–" good={false} />}
+        <SessionCell t={r.circle} quiet={!r.tracked} />
+        {hasSistersConnect ? <SessionCell t={r.sisters} quiet={!r.tracked} /> : <Cell value="–" good={false} />}
         <div className="tm-chev">{open ? '▾' : '›'}</div>
       </button>
 
       {open && (
         <div className="tm-det">
+          {!r.tracked && (
+            <p className="tm-hint" style={{ margin: '4px 0 0' }}>
+              She has not renewed, so there is nothing for you to record for her. You can still mark a date if she came.
+            </p>
+          )}
           <SessionRow
             label="Imara Circle" sessions={w.circle} type="circle"
             womanId={w.woman_id} name={w.first_name} busy={busy} onMark={onMark}

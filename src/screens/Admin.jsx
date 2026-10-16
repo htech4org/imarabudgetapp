@@ -476,7 +476,7 @@ function RecordingStatus({ password }) {
       <span className="small" style={{ fontWeight: 700 }}>Attendance recording{data?.month ? ` · ${String(data.month).slice(0, 7)}` : ''}</span>
       <p className="tiny muted" style={{ margin: '6px 0 12px', lineHeight: 1.6 }}>
         Whether each mentor has marked her team present or absent for sessions held so far.
-        Not recorded is different from absent.
+        Not recorded is different from absent. Women who have not renewed are not counted.
       </p>
       {error && <div className="error-note">{error}</div>}
       {!data && !error && <p className="small muted">Loading…</p>}
