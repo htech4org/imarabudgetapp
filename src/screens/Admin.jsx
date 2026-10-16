@@ -96,6 +96,13 @@ function Console({ data, password, onRefresh, busy, onLock }) {
 
   return (
     <>
+      <style>{`
+        .admin-bar{padding-bottom:0!important}
+        .adm-tabs{display:flex;gap:4px;flex-wrap:wrap}
+        .adm-tabs button{padding:11px 20px;border-radius:10px 10px 0 0;font-size:13.5px;font-weight:600;color:rgba(255,226,204,.75);background:none;border:0;cursor:pointer}
+        .adm-tabs button:hover{color:#fff}
+        .adm-tabs button.on{background:var(--bg);color:var(--maroon-900)}
+      `}</style>
       <div className="admin-bar">
         <div className="admin-bar-inner">
           <div>
@@ -111,13 +118,11 @@ function Console({ data, password, onRefresh, busy, onLock }) {
             <button className="btn btn-sm btn-soft" onClick={onLock}>Lock</button>
           </div>
         </div>
-        <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: -4 }}>
-          <div className="type-toggle" style={{ maxWidth: 720 }}>
-            <button className={tab === 'budget' ? 'on' : ''} onClick={() => setTab('budget')}>Budget</button>
-            <button className={tab === 'reading' ? 'on' : ''} onClick={() => setTab('reading')}>Book Reading</button>
-            <button className={tab === 'mentors' ? 'on' : ''} onClick={() => setTab('mentors')}>Mentors</button>
-            <button className={tab === 'attendance' ? 'on' : ''} onClick={() => setTab('attendance')}>Attendance</button>
-            <button className={tab === 'access' ? 'on' : ''} onClick={() => setTab('access')}>Access</button>
+        <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: 6 }}>
+          <div className="adm-tabs">
+            {[['budget', 'Budget'], ['reading', 'Book Reading'], ['mentors', 'Mentors'], ['attendance', 'Attendance'], ['access', 'Access']].map(([k, label]) => (
+              <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>
+            ))}
           </div>
         </div>
       </div>
