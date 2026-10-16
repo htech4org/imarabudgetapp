@@ -187,8 +187,7 @@ function AccessRow({ woman, busy, onSaveLink }) {
 }
 
 function TeamRow({ woman, busy, onMark, onSaveLink, hasSistersConnect }) {
-  const cur = woman.currency || '₦'
-  const invested = Number(woman.invested_amount) > 0
+  const invested = Boolean(woman.invested)
   const readDays = Number(woman.reading_active_days) || 0
   const chaptersPassed = Number(woman.chapters_passed) || 0
 
@@ -202,7 +201,7 @@ function TeamRow({ woman, busy, onMark, onSaveLink, hasSistersConnect }) {
           {readDays > 0 ? `Read ${readDays} day${readDays === 1 ? '' : 's'} · ${chaptersPassed} ch. passed` : 'No reading logged'}
         </span>
         <span className={`tag ${invested ? 'tag-good' : 'tag-unassigned'}`}>
-          {invested ? `Invested ${cur}${Number(woman.invested_amount).toLocaleString('en-US')}` : 'No investing logged'}
+          {invested ? 'Invested this month' : 'No investing logged'}
         </span>
       </div>
 
