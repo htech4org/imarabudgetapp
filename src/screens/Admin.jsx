@@ -75,7 +75,7 @@ export default function Admin() {
 // ---------------------------------------------------------------------------
 
 function Console({ data, password, onRefresh, busy, onLock }) {
-  const [tab, setTab] = useState('budget')   // 'budget' | 'reading' | 'mentors' | 'access'
+  const [tab, setTab] = useState('budget')   // 'budget' | 'reading' | 'mentors' | 'attendance' | 'access'
   const [query, setQuery] = useState('')
   const [archFilter, setArchFilter] = useState('all')
   const [openId, setOpenId] = useState(null)
@@ -112,10 +112,11 @@ function Console({ data, password, onRefresh, busy, onLock }) {
           </div>
         </div>
         <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: -4 }}>
-          <div className="type-toggle" style={{ maxWidth: 580 }}>
+          <div className="type-toggle" style={{ maxWidth: 720 }}>
             <button className={tab === 'budget' ? 'on' : ''} onClick={() => setTab('budget')}>Budget</button>
             <button className={tab === 'reading' ? 'on' : ''} onClick={() => setTab('reading')}>Book Reading</button>
             <button className={tab === 'mentors' ? 'on' : ''} onClick={() => setTab('mentors')}>Mentors</button>
+            <button className={tab === 'attendance' ? 'on' : ''} onClick={() => setTab('attendance')}>Attendance</button>
             <button className={tab === 'access' ? 'on' : ''} onClick={() => setTab('access')}>Access</button>
           </div>
         </div>
@@ -125,6 +126,8 @@ function Console({ data, password, onRefresh, busy, onLock }) {
         <ReadingConsole password={password} />
       ) : tab === 'mentors' ? (
         <MentorsTab password={password} />
+      ) : tab === 'attendance' ? (
+        <AttendanceTab password={password} />
       ) : tab === 'access' ? (
         <AccessTab password={password} />
       ) : (
@@ -396,19 +399,21 @@ function Metric({ k, v, s, tone }) {
 function MentorsTab({ password }) {
   const [mentors, setMentors] = useState([])
   const [women, setWomen] = useState([])
-  const [overview, setOverview] = useState(null)
+  const [unassigned, setUnassigned] = useState(null)
+  const [report, setReport] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   const loadMentors = () => rpc('imara_admin_mentors_list', { p_admin_password: password }).then(setMentors)
   const loadWomen = () => rpc('imara_admin_women_for_assignment', { p_admin_password: password }).then(setWomen)
-  const loadOverview = (monthIso) =>
-    rpc('imara_admin_reports_overview', { p_admin_password: password, p_month: monthIso || null })
-      .then((o) => { setOverview(o); return o })
+  const loadUnassigned = () => rpc('imara_admin_unassigned', { p_admin_password: password }).then(setUnassigned)
+  const loadReport = (monthIso) =>
+    rpc('imara_admin_month_report', { p_admin_password: password, p_month: monthIso || null })
+      .then((o) => { setReport(o); return o })
 
   const refreshAll = async () => {
     setBusy(true); setError('')
-    try { await Promise.all([loadMentors(), loadWomen(), loadOverview()]) }
+    try { await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport()]) }
     catch (e) { setError(e.message) }
     finally { setBusy(false) }
   }
@@ -417,7 +422,7 @@ function MentorsTab({ password }) {
     setBusy(true)
     try {
       await rpc('imara_admin_set_mentor', { p_admin_password: password, p_woman_id: womanId, p_is_mentor: isMentor })
-      await Promise.all([loadMentors(), loadWomen()])
+      await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(report?.month)])
     } finally { setBusy(false) }
   }
 
@@ -425,24 +430,36 @@ function MentorsTab({ password }) {
     setBusy(true)
     try {
       await rpc('imara_admin_assign_mentor', { p_admin_password: password, p_woman_id: womanId, p_mentor_id: mentorId })
-      await Promise.all([loadMentors(), loadWomen()])
+      await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(report?.month)])
+    } finally { setBusy(false) }
+  }
+
+  // Assign several women to one mentor, then reload once.
+  const assignMany = async (womanIds, mentorId) => {
+    setBusy(true)
+    try {
+      for (const id of womanIds) {
+        await rpc('imara_admin_assign_mentor', { p_admin_password: password, p_woman_id: id, p_mentor_id: mentorId })
+      }
+      await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(report?.month)])
     } finally { setBusy(false) }
   }
 
   return (
     <div className="admin">
       {error && <div className="error-note" style={{ marginBottom: 16 }}>{error}</div>}
-      <RecordingStatus password={password} />
       <div className="panel">
         <MentorsConsole
           busy={busy}
           mentors={mentors}
           women={women}
-          overview={overview}
+          unassigned={unassigned}
+          report={report}
           onRefreshAll={refreshAll}
           onSetMentor={setMentor}
           onAssignMentor={assignMentor}
-          onLoadOverview={loadOverview}
+          onAssignMany={assignMany}
+          onLoadReport={loadReport}
         />
       </div>
       <p className="tiny faint center" style={{ marginTop: 30 }}>
@@ -472,8 +489,8 @@ function RecordingStatus({ password }) {
   const behindMentors = rows.filter((r) => Number(r.behind) > 0).length
 
   return (
-    <div className="panel" style={{ marginBottom: 18 }}>
-      <span className="small" style={{ fontWeight: 700 }}>Attendance recording{data?.month ? ` · ${String(data.month).slice(0, 7)}` : ''}</span>
+    <div className="panel">
+      <span className="small" style={{ fontWeight: 700 }}>Has each mentor recorded it?{data?.month ? ` · ${String(data.month).slice(0, 7)}` : ''}</span>
       <p className="tiny muted" style={{ margin: '6px 0 12px', lineHeight: 1.6 }}>
         Whether each mentor has marked her team present or absent for sessions held so far.
         Not recorded is different from absent. Women who have not renewed are not counted.
@@ -533,13 +550,30 @@ function RecordingStatus({ password }) {
 // Subscription access: who has paid, who is exempt, the master lock, and the
 // three links. Owns the fetching; AccessConsole is purely presentational.
 // Action errors are thrown back to AccessConsole, which shows them.
-// Who tapped a Tuesday class link, and when. A tap between 8pm and 10pm Lagos
-// counts as joined; anything else that day is only counted, not timed.
+// Attendance logs: who tapped a Tuesday class link, and whether each mentor
+// has recorded attendance for her team.
+function AttendanceTab({ password }) {
+  return (
+    <div className="admin">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, alignItems: 'start' }}>
+        <ClassTaps password={password} />
+        <RecordingStatus password={password} />
+      </div>
+      <p className="tiny faint center" style={{ marginTop: 30 }}>
+        © IMARA Wealth Trybe · Leading Ladies Foundation
+      </p>
+    </div>
+  )
+}
+
+// A tap between 7:50pm and 10pm Lagos time counts as joined (taps before 8pm
+// are labelled early). Anything else that day is only counted, with its time.
 function ClassTaps({ password }) {
   const [date, setDate] = useState('')          // '' = latest Tuesday
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [search, setSearch] = useState('')
 
   const load = async (d) => {
     setLoading(true); setError('')
@@ -550,11 +584,18 @@ function ClassTaps({ password }) {
   useEffect(() => { load(date) }, [date]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = data?.rows || []
+  const q = search.trim().toLowerCase()
+  const shown = rows.filter((r) => !q || (r.first_name || '').toLowerCase().includes(q) || (r.mentor_name || '').toLowerCase().includes(q))
+  const zoom = rows.filter((r) => r.circle_at).length
+  const yt = rows.filter((r) => r.foundation_at).length
+  const outside = rows.filter((r) => Number(r.outside_window_taps) > 0).length
+  const cell = { padding: '9px 8px', borderTop: '1px solid var(--line)' }
+
   return (
-    <div className="panel" style={{ marginBottom: 18 }}>
+    <div className="panel">
       <div className="row-between" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <span className="small" style={{ fontWeight: 700 }}>
-          Tuesday class taps{data?.date ? ` · ${data.date}` : ''}
+          Attendance logs{data?.date ? ` · ${data.date}` : ''}
         </span>
         <div className="row" style={{ gap: 8, alignItems: 'center' }}>
           <input
@@ -567,28 +608,60 @@ function ClassTaps({ password }) {
         </div>
       </div>
       <p className="tiny muted" style={{ margin: '6px 0 12px', lineHeight: 1.6 }}>
-        First tap between 8pm and 10pm Lagos time. A tap shows she tried to join, not that she stayed.
+        A tap from 7:50pm to 10:00pm Lagos time counts as joining. A tap shows she tried to join, not that she stayed.
       </p>
       {error && <div className="error-note">{error}</div>}
-      {!error && rows.length === 0 && <p className="small muted">No taps recorded for this day.</p>}
-      {rows.length > 0 && (
-        <div className="stack" style={{ gap: 6 }}>
-          <p className="tiny muted">
-            {rows.filter((r) => r.circle_at).length} on Zoom · {rows.filter((r) => r.foundation_at).length} on YouTube
-          </p>
-          {rows.map((r) => (
-            <div key={r.woman_id} className="row-between" style={{ gap: 8, flexWrap: 'wrap' }}>
-              <span className="small">
-                {r.first_name}
-                {r.mentor_name ? <span className="muted"> · {r.mentor_name}</span> : null}
-              </span>
-              <span className="tiny muted">
-                {[r.circle_at && `Zoom ${r.circle_at}`, r.foundation_at && `YouTube ${r.foundation_at}`].filter(Boolean).join(' · ') || 'outside 8–10pm only'}
-                {Number(r.outside_window_taps) > 0 && (r.circle_at || r.foundation_at) ? ` · +${r.outside_window_taps} outside window` : ''}
-              </span>
+
+      {data && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 14 }}>
+          {[['Joined Zoom', zoom, 'IMARA Circle'], ['Joined YouTube', yt, 'Foundation Arc'], ['Outside window', outside, 'before 7:50pm or after 10pm']].map(([k, v, sub]) => (
+            <div key={k} className="card" style={{ padding: 12 }}>
+              <span className="tiny muted" style={{ textTransform: 'uppercase', letterSpacing: '.1em', fontWeight: 700 }}>{k}</span>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600 }}>{v}</div>
+              <span className="tiny muted">{sub}</span>
             </div>
           ))}
         </div>
+      )}
+
+      {!error && rows.length === 0 && <p className="small muted">No taps recorded for this day.</p>}
+      {rows.length > 0 && (
+        <>
+          <input className="input" placeholder="Search by woman or mentor" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 10 }} />
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 420 }}>
+              <thead>
+                <tr style={{ textAlign: 'left' }}>
+                  {['Woman', 'Mentor', 'Zoom', 'YouTube'].map((h) => (
+                    <th key={h} className="tiny muted" style={{ padding: '0 8px 8px', textTransform: 'uppercase', letterSpacing: '.09em' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((r) => {
+                  const joined = r.circle_at || r.foundation_at
+                  return (
+                    <tr key={r.woman_id}>
+                      <td style={cell}><b>{r.first_name}</b></td>
+                      <td style={cell}>{r.mentor_name || '—'}</td>
+                      {joined ? (
+                        <>
+                          <td style={cell}>{r.circle_at || '—'}{r.circle_early && <span className="tag tag-good" style={{ marginLeft: 6 }}>early</span>}</td>
+                          <td style={cell}>{r.foundation_at || '—'}{r.foundation_early && <span className="tag tag-good" style={{ marginLeft: 6 }}>early</span>}</td>
+                        </>
+                      ) : (
+                        <td colSpan={2} className="muted" style={cell}>
+                          outside window only{r.outside_at ? ` · ${r.outside_at}` : ''}
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          {shown.length === 0 && <p className="small muted" style={{ marginTop: 8 }}>No matches.</p>}
+        </>
       )}
     </div>
   )
@@ -619,7 +692,6 @@ function AccessTab({ password }) {
   return (
     <div className="admin">
       {error && <div className="error-note" style={{ marginBottom: 16 }}>{error}</div>}
-      <ClassTaps password={password} />
       <div className="panel">
         <AccessConsole
           busy={busy}
