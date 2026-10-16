@@ -432,6 +432,7 @@ function MentorsTab({ password }) {
   return (
     <div className="admin">
       {error && <div className="error-note" style={{ marginBottom: 16 }}>{error}</div>}
+      <RecordingStatus password={password} />
       <div className="panel">
         <MentorsConsole
           busy={busy}
@@ -447,6 +448,84 @@ function MentorsTab({ password }) {
       <p className="tiny faint center" style={{ marginTop: 30 }}>
         © IMARA Wealth Trybe · Leading Ladies Foundation
       </p>
+    </div>
+  )
+}
+
+// Has each mentor actually RECORDED attendance, or are sessions just sitting
+// there blank? "Behind" counts sessions held so far this month that she has not
+// marked present or absent for someone on her team.
+function RecordingStatus({ password }) {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [open, setOpen] = useState(null)
+
+  useEffect(() => {
+    rpc('imara_admin_recording_overview', { p_admin_password: password, p_month: null })
+      .then(setData).catch((e) => setError(e.message))
+  }, [password])
+
+  const rows = data?.rows || []
+  const expected = rows.reduce((n, r) => n + Number(r.expected || 0), 0)
+  const recorded = rows.reduce((n, r) => n + Number(r.recorded || 0), 0)
+  const pct = expected > 0 ? Math.round((recorded / expected) * 100) : 100
+  const behindMentors = rows.filter((r) => Number(r.behind) > 0).length
+
+  return (
+    <div className="panel" style={{ marginBottom: 18 }}>
+      <span className="small" style={{ fontWeight: 700 }}>Attendance recording{data?.month ? ` · ${String(data.month).slice(0, 7)}` : ''}</span>
+      <p className="tiny muted" style={{ margin: '6px 0 12px', lineHeight: 1.6 }}>
+        Whether each mentor has marked her team present or absent for sessions held so far.
+        Not recorded is different from absent.
+      </p>
+      {error && <div className="error-note">{error}</div>}
+      {!data && !error && <p className="small muted">Loading…</p>}
+      {data && rows.length === 0 && <p className="small muted">No mentors with a team yet.</p>}
+      {data && rows.length > 0 && (
+        <>
+          <p className="small" style={{ marginBottom: 12 }}>
+            <b>{pct}%</b> recorded · <b>{behindMentors}</b> mentor{behindMentors === 1 ? '' : 's'} behind · <b>{expected - recorded}</b> still to record
+          </p>
+          <div className="stack" style={{ gap: 10 }}>
+            {rows.map((r) => {
+              const exp = Number(r.expected || 0), rec = Number(r.recorded || 0), behind = Number(r.behind || 0)
+              const w = exp > 0 ? Math.round((rec / exp) * 100) : 100
+              const colour = behind === 0 ? '#59BA8E' : w < 50 ? '#F3A0B0' : '#F2C46B'
+              return (
+                <div key={r.mentor_id}>
+                  <button
+                    type="button" onClick={() => setOpen(open === r.mentor_id ? null : r.mentor_id)}
+                    style={{ all: 'unset', cursor: behind > 0 ? 'pointer' : 'default', display: 'block', width: '100%' }}
+                  >
+                    <div className="row-between" style={{ gap: 8, flexWrap: 'wrap' }}>
+                      <span className="small"><b>{r.mentor_name}</b> <span className="muted">· team of {r.team_size}</span></span>
+                      <span className="tiny muted">
+                        {rec} of {exp} recorded{r.last_entry ? ` · last entry ${r.last_entry}` : ' · nothing recorded yet'}
+                        {behind > 0 ? ' ›' : ' ✓'}
+                      </span>
+                    </div>
+                    <div style={{ height: 6, borderRadius: 9, background: 'var(--surface-2)', overflow: 'hidden', marginTop: 5 }}>
+                      <div style={{ width: `${w}%`, height: '100%', background: colour, borderRadius: 9 }} />
+                    </div>
+                  </button>
+                  {r.no_sisters_day && (
+                    <p className="tiny muted" style={{ marginTop: 4 }}>She has not picked her Sisters Connect day yet.</p>
+                  )}
+                  {open === r.mentor_id && (r.missing || []).length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      {r.missing.map((m, i) => (
+                        <p key={i} className="tiny" style={{ lineHeight: 1.8 }}>
+                          {m.kind} · {String(m.session_date).slice(5)}: {m.recorded} of {m.team} recorded
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
     </div>
   )
 }

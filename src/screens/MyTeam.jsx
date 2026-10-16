@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { CREED } from '../lib/constants'
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August',
@@ -13,17 +13,53 @@ function monthLabel(iso) {
 
 function shortDate(iso) {
   if (!iso) return ''
-  const d = new Date(`${iso}T00:00:00`)
+  const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-// Shown to a woman flagged as a mentor. Imara Circle meets every Tuesday,
-// same for everyone; Sisters Connect meets weekly too, but on whichever day
-// she picks for her own group below. Reading and investing stay as read-only
-// facts pulled from the app itself. Attendance is per specific date — she
-// taps a date chip to mark whether that woman was there, one tap per
-// session, no separate save step.
-export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAttendance, onSetMenteeLink, onSwitchApp, onSignOut }) {
+// Counts for one list of sessions: held (already happened), present, and how
+// many of the held ones the mentor has not recorded yet.
+function tally(sessions = []) {
+  const held = sessions.filter((s) => !s.future)
+  return {
+    held: held.length,
+    present: held.filter((s) => s.recorded && s.attended).length,
+    toRecord: held.filter((s) => !s.recorded).length,
+  }
+}
+
+function daysUntil(iso) {
+  if (!iso) return null
+  const a = new Date(); a.setHours(0, 0, 0, 0)
+  const b = new Date(`${String(iso).slice(0, 10)}T00:00:00`)
+  return Math.round((b - a) / 86400000)
+}
+
+// Everything a mentor needs to judge her team at a glance. One row per
+// mentee in shared columns; tap a name to open her dates and mark attendance.
+// A past session is one of three things: present, absent, or not recorded yet.
+export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAttendance, onSetTeamLink, onSwitchApp, onSignOut }) {
+  const [filter, setFilter] = useState('all')   // all | attention | record | renew
+  const [openId, setOpenId] = useState(null)
+
+  const rows = useMemo(() => {
+    const team = data?.team || []
+    return team.map((w) => {
+      const circle = tally(w.circle)
+      const sisters = tally(w.sisters_connect)
+      const readDays = Number(w.reading_active_days) || 0
+      const status = w.access_status || 'active'
+      const left = status === 'active' ? daysUntil(w.paid_until) : null
+      const notRenewed = status === 'expired' || status === 'pending'
+      return {
+        w, circle, sisters, readDays, status, left, notRenewed,
+        invested: Boolean(w.invested),
+        toRecord: circle.toRecord + sisters.toRecord,
+        attention: readDays === 0 || !w.invested || notRenewed,
+      }
+    })
+  }, [data])
+
   if (!data) {
     return (
       <div className="loading-wrap">
@@ -33,54 +69,139 @@ export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAtt
     )
   }
 
-  const { month, team, sisters_connect_weekday } = data
+  const { month, sisters_connect_weekday } = data
+  const toRecordTotal = rows.reduce((n, r) => n + r.toRecord, 0)
+  const shown = rows.filter((r) =>
+    filter === 'attention' ? r.attention
+      : filter === 'record' ? r.toRecord > 0
+      : filter === 'renew' ? r.notRenewed
+      : true)
 
   return (
-    <div className="shell fade-in">
+    <div className="shell fade-in tm">
+      <style>{CSS}</style>
+
       <div className="topbar">
         <div className="eyebrow" style={{ color: 'var(--peach)' }}>My Team</div>
         <h1 className="display d-lg" style={{ marginTop: 5 }}>{mentorName?.toLowerCase()}'s team</h1>
         <p className="tiny" style={{ color: 'rgba(255,226,204,0.66)', marginTop: 8 }}>
           Reporting for {monthLabel(month)}
         </p>
-        <p className="tiny" style={{ color: 'rgba(255,226,204,0.5)', marginTop: 4 }}>
-          Every date this month is shown so you can plan ahead — greyed-out dates haven't happened yet.
-        </p>
       </div>
 
-      <div className="pad" style={{ paddingTop: 24 }}>
-        <SistersConnectSetup weekday={sisters_connect_weekday} busy={busy} onSet={onSetWeekday} />
+      <div className="pad" style={{ paddingTop: 20 }}>
+        <div className="stack" style={{ gap: 12 }}>
+          <TeamLink link={data.team_link} busy={busy} onSave={onSetTeamLink} />
+          <SistersConnectSetup weekday={sisters_connect_weekday} busy={busy} onSet={onSetWeekday} />
 
-        {team.length === 0 ? (
-          <div className="empty-state">
-            <p className="small muted">
-              No one is on your team yet. Ask Admin to assign women to you.
-            </p>
-          </div>
-        ) : (
-          <div className="stack" style={{ gap: 12 }}>
-            {team.map((w) => (
-              <TeamRow
-                key={w.woman_id}
-                woman={w}
-                busy={busy}
-                onMark={onMarkAttendance}
-                onSaveLink={onSetMenteeLink}
-                hasSistersConnect={sisters_connect_weekday != null}
-              />
-            ))}
-          </div>
-        )}
+          {rows.length === 0 ? (
+            <div className="empty-state">
+              <p className="small muted">No one is on your team yet. Ask Admin to assign women to you.</p>
+            </div>
+          ) : (
+            <>
+              {toRecordTotal > 0 && (
+                <div className="tm-todo">
+                  <div>
+                    <b>{toRecordTotal} session{toRecordTotal === 1 ? '' : 's'} to record</b>
+                    <small>Mark each woman present or absent</small>
+                  </div>
+                  <button type="button" className="tm-go" onClick={() => { setFilter('record'); setOpenId(null) }}>Record now</button>
+                </div>
+              )}
+
+              <div className="card tm-sum">
+                <div><b>{rows.length}</b><small>mentees</small></div>
+                <div><b>{rows.filter((r) => r.readDays > 0).length}</b><small>reading</small></div>
+                <div><b>{rows.filter((r) => r.invested).length}</b><small>invested</small></div>
+                <div><b>{rows.filter((r) => r.attention).length}</b><small>need a nudge</small></div>
+              </div>
+
+              <div className="tm-filters">
+                {[['all', 'Everyone'], ['attention', 'Needs attention'], ['record', 'To record'], ['renew', 'Not renewed']].map(([k, label]) => (
+                  <button key={k} type="button" className={`tm-fl${filter === k ? ' on' : ''}`} onClick={() => setFilter(k)}>{label}</button>
+                ))}
+              </div>
+
+              <div className="tm-list">
+                <div className="tm-head">
+                  <span>Mentee</span><span>Reading</span><span>Invested</span><span>Circle</span><span>Sisters</span><span />
+                </div>
+                {shown.length === 0 && <p className="tiny muted" style={{ padding: 14 }}>No one in this view.</p>}
+                {shown.map((r) => (
+                  <TeamRow
+                    key={r.w.woman_id} r={r} busy={busy}
+                    open={openId === r.w.woman_id}
+                    onToggle={() => setOpenId(openId === r.w.woman_id ? null : r.w.woman_id)}
+                    onMark={onMarkAttendance}
+                    hasSistersConnect={sisters_connect_weekday != null}
+                  />
+                ))}
+              </div>
+              <p className="tm-legend">
+                Reading = days read this month · Circle and Sisters = times she came out of sessions held · an amber dot means some are not recorded yet · tap a name for dates
+              </p>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="footer-note">
         <p className="creed">{CREED}</p>
         <p style={{ marginBottom: 12 }}>© IMARA Wealth Trybe · Leading Ladies Foundation</p>
         <div className="row" style={{ justifyContent: 'center', gap: 18 }}>
-          {onSwitchApp && <button className="btn-link" onClick={onSwitchApp}>Back to Budget / Reading</button>}
+          {onSwitchApp && <button className="btn-link" onClick={onSwitchApp}>Back to home</button>}
           <button className="btn-link" onClick={onSignOut}>Sign out of this device</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// One payment link for the whole team. Mentees see it when it is time to renew.
+function TeamLink({ link, busy, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [err, setErr] = useState('')
+
+  const save = async () => {
+    setErr('')
+    try { await onSave(draft.trim()); setEditing(false) }
+    catch (e) { setErr(e.message) }
+  }
+
+  return (
+    <div className="card">
+      <div className="tm-lbl">Your team's payment link · one for everyone</div>
+      {!editing ? (
+        <div className="tm-link">
+          <div className={`f${link ? '' : ' empty'}`}>{link || 'Not added yet'}</div>
+          <button
+            type="button" className="b" disabled={busy}
+            onClick={() => { setDraft(link || ''); setErr(''); setEditing(true) }}
+          >
+            {link ? 'Edit' : 'Add'}
+          </button>
+        </div>
+      ) : (
+        <div style={{ marginTop: 8 }}>
+          <div className="row" style={{ gap: 8 }}>
+            <input
+              className="input" style={{ flex: 1, minWidth: 0 }}
+              placeholder="Paste your Selar link (https://…)"
+              value={draft} onChange={(e) => setDraft(e.target.value)}
+            />
+            <button className="btn btn-sm btn-primary" disabled={busy} onClick={save}>Save</button>
+            <button className="btn-link" onClick={() => setEditing(false)}>Cancel</button>
+          </div>
+          {err && <div className="error-note" style={{ marginTop: 8 }}>{err}</div>}
+        </div>
+      )}
+      <p className="tm-note">
+        {link
+          ? 'Your mentees see this link when it is time to renew.'
+          : 'Add it once. Your mentees will see it when it is time to renew, so you do not need to send it to each woman.'}
+      </p>
     </div>
   )
 }
@@ -91,7 +212,7 @@ function SistersConnectSetup({ weekday, busy, onSet }) {
 
   if (!editing) {
     return (
-      <div className="row-between" style={{ marginBottom: 18, flexWrap: 'wrap', gap: 6 }}>
+      <div className="row-between" style={{ flexWrap: 'wrap', gap: 6 }}>
         <span className="tiny muted">Your Sisters Connect group meets on {WEEKDAYS[weekday]}s</span>
         <button className="btn-link" onClick={() => setEditing(true)}>Change</button>
       </div>
@@ -99,7 +220,7 @@ function SistersConnectSetup({ weekday, busy, onSet }) {
   }
 
   return (
-    <div className="card" style={{ marginBottom: 18 }}>
+    <div className="card">
       <p className="small" style={{ fontWeight: 600, marginBottom: 10 }}>
         Which day does your Sisters Connect group meet?
       </p>
@@ -127,97 +248,65 @@ function SistersConnectSetup({ weekday, busy, onSet }) {
   )
 }
 
-function AccessRow({ woman, busy, onSaveLink }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
-  const [err, setErr] = useState('')
-  const status = woman.access_status || 'active'
-  const hasLink = Boolean(woman.renewal_link)
-
-  let tag = null
-  if (status === 'active' && woman.paid_until) {
-    tag = <span className="tag tag-good">Access until {shortDate(woman.paid_until)}</span>
-  } else if (status === 'expired') {
-    tag = <span className="tag tag-unassigned">Access ended {shortDate(woman.paid_until)}</span>
-  } else if (status === 'pending') {
-    tag = <span className="tag tag-unassigned">Awaiting payment</span>
+function AccessTag({ status, left, paidUntil }) {
+  if (status === 'pending') return <span className="tm-t r">unpaid</span>
+  if (status === 'expired') return <span className="tm-t r">ended</span>
+  if (status === 'active' && left != null && left >= 0 && left <= 8) {
+    return <span className="tm-t o">ends {shortDate(paidUntil)}</span>
   }
+  return <span className="tm-t g">active</span>
+}
 
-  const save = async () => {
-    setErr('')
-    try {
-      await onSaveLink(woman.woman_id, draft.trim())
-      setEditing(false)
-    } catch (e) {
-      setErr(e.message)
-    }
-  }
+function Cell({ value, good }) {
+  return <div className={`tm-c ${good === true ? 'yes' : good === false ? 'no' : 'mid'}`}>{value}</div>
+}
 
+function SessionCell({ t }) {
+  if (t.held === 0) return <Cell value="–" good={false} />
+  const all = t.present === t.held && t.toRecord === 0
   return (
-    <div style={{ marginTop: 13 }}>
-      {tag}
-      {!editing ? (
-        <div className="row" style={{ gap: 10, marginTop: tag ? 8 : 0, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span className="tiny" style={{ color: hasLink ? 'var(--text-soft)' : undefined }}>
-            {hasLink ? '✓ Payment link added' : 'No payment link for her yet'}
-          </span>
-          <button
-            className="btn-link" disabled={busy}
-            onClick={() => { setDraft(woman.renewal_link || ''); setErr(''); setEditing(true) }}
-          >
-            {hasLink ? 'Edit' : 'Add her payment link'}
-          </button>
-        </div>
-      ) : (
-        <div style={{ marginTop: 8 }}>
-          <div className="row" style={{ gap: 8 }}>
-            <input
-              className="input" style={{ flex: 1, minWidth: 0 }}
-              placeholder="Paste her Selar link (https://…)"
-              value={draft} onChange={(e) => setDraft(e.target.value)}
-            />
-            <button className="btn btn-sm btn-primary" disabled={busy || !draft.trim()} onClick={save}>Save</button>
-            <button className="btn-link" onClick={() => setEditing(false)}>Cancel</button>
-          </div>
-          {err && <div className="error-note" style={{ marginTop: 8 }}>{err}</div>}
-        </div>
-      )}
+    <div className={`tm-c ${all ? 'yes' : t.present === 0 ? 'no' : 'mid'}`}>
+      {t.present}/{t.held}{t.toRecord > 0 && <i className="tm-dot" title={`${t.toRecord} not recorded yet`} />}
     </div>
   )
 }
 
-function TeamRow({ woman, busy, onMark, onSaveLink, hasSistersConnect }) {
-  const invested = Boolean(woman.invested)
-  const readDays = Number(woman.reading_active_days) || 0
-  const chaptersPassed = Number(woman.chapters_passed) || 0
-
+function TeamRow({ r, busy, open, onToggle, onMark, hasSistersConnect }) {
+  const { w } = r
   return (
-    <div className="card">
-      <span className="small" style={{ fontWeight: 700, fontSize: 15 }}>{woman.first_name}</span>
+    <div className={`tm-row${open ? ' open' : ''}`}>
+      <button type="button" className="tm-main" onClick={onToggle}>
+        <div className="tm-who">
+          <b>{w.first_name}</b>
+          <AccessTag status={r.status} left={r.left} paidUntil={w.paid_until} />
+        </div>
+        <Cell value={r.readDays > 0 ? `${r.readDays} day${r.readDays === 1 ? '' : 's'}` : '–'} good={r.readDays > 0} />
+        <Cell value={r.invested ? '✓' : '–'} good={r.invested} />
+        <SessionCell t={r.circle} />
+        {hasSistersConnect ? <SessionCell t={r.sisters} /> : <Cell value="–" good={false} />}
+        <div className="tm-chev">{open ? '▾' : '›'}</div>
+      </button>
 
-      {/* ---- Auto-pulled facts ---- */}
-      <div className="row" style={{ gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-        <span className={`tag ${readDays > 0 ? 'tag-good' : 'tag-unassigned'}`}>
-          {readDays > 0 ? `Read ${readDays} day${readDays === 1 ? '' : 's'} · ${chaptersPassed} ch. passed` : 'No reading logged'}
-        </span>
-        <span className={`tag ${invested ? 'tag-good' : 'tag-unassigned'}`}>
-          {invested ? 'Invested this month' : 'No investing logged'}
-        </span>
-      </div>
-
-      {onSaveLink && <AccessRow woman={woman} busy={busy} onSaveLink={onSaveLink} />}
-
-      {/* ---- Per-session attendance ---- */}
-      <SessionRow
-        label="Imara Circle" sessions={woman.circle} sessionType="circle"
-        womanId={woman.woman_id} busy={busy} onMark={onMark}
-      />
-      <ClassJoins joins={woman.class_joins} />
-      {hasSistersConnect && (
-        <SessionRow
-          label="Sisters Connect" sessions={woman.sisters_connect} sessionType="sisters_connect"
-          womanId={woman.woman_id} busy={busy} onMark={onMark}
-        />
+      {open && (
+        <div className="tm-det">
+          <SessionRow
+            label="Imara Circle" sessions={w.circle} type="circle"
+            womanId={w.woman_id} name={w.first_name} busy={busy} onMark={onMark}
+          />
+          {hasSistersConnect && (
+            <SessionRow
+              label="Sisters Connect" sessions={w.sisters_connect} type="sisters_connect"
+              womanId={w.woman_id} name={w.first_name} busy={busy} onMark={onMark}
+            />
+          )}
+          <ClassJoins joins={w.class_joins} />
+          <p className="tm-dl">Access</p>
+          <p className="tm-hint">
+            {r.status === 'pending' ? 'Awaiting payment'
+              : r.status === 'expired' ? `Ended ${shortDate(w.paid_until)}`
+              : w.paid_until ? `Active until ${shortDate(w.paid_until)}` : 'Active'}
+          </p>
+        </div>
       )}
     </div>
   )
@@ -229,44 +318,108 @@ function ClassJoins({ joins }) {
   const rows = (joins || []).filter((j) => j.circle_at || j.foundation_at)
   if (rows.length === 0) return null
   return (
-    <div style={{ marginTop: 8 }}>
+    <>
+      <p className="tm-dl">Class taps (a hint, not a record)</p>
       {rows.map((j) => (
-        <p key={j.session_date} className="tiny" style={{ color: 'var(--text-soft)', lineHeight: 1.7 }}>
+        <p key={j.session_date} className="tm-hint">
           {shortDate(j.session_date)}:{' '}
           {[j.circle_at && `Zoom ${j.circle_at}`, j.foundation_at && `YouTube ${j.foundation_at}`].filter(Boolean).join(' · ')}
         </p>
       ))}
-    </div>
+    </>
   )
 }
 
-function SessionRow({ label, sessions, sessionType, womanId, busy, onMark }) {
+function SessionRow({ label, sessions, type, womanId, name, busy, onMark }) {
+  const [picking, setPicking] = useState(null)   // session_id being decided
+
+  const choose = async (s, attended) => {
+    await onMark(womanId, type, s.session_id, attended)
+    setPicking(null)
+  }
+
   return (
-    <div style={{ marginTop: 13 }}>
-      <p className="tiny muted" style={{ marginBottom: 7 }}>{label}</p>
+    <>
+      <p className="tm-dl">{label}</p>
       {sessions.length === 0 ? (
-        <p className="tiny" style={{ color: 'var(--text-soft)' }}>No sessions set up yet this month.</p>
+        <p className="tm-hint">No sessions set up yet this month.</p>
       ) : (
-        <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-          {sessions.map((s) => (
-            <button
-              key={s.session_id}
-              type="button"
-              className={`cat-chip ${s.attended ? 'on' : ''} ${s.future ? 'future' : ''}`}
-              disabled={busy || s.future}
-              onClick={() => onMark(womanId, sessionType, s.session_id, !s.attended)}
-              title={
-                s.future
-                  ? "This date hasn't happened yet — you can plan around it, but can't mark it yet"
-                  : s.attended ? 'Marked present — tap to undo' : 'Tap if she was there'
-              }
-              style={s.future ? { opacity: 0.45, cursor: 'default' } : undefined}
-            >
-              {s.attended ? '✓ ' : ''}{shortDate(s.session_date)}
-            </button>
-          ))}
+        <div className="tm-chips">
+          {sessions.map((s) => {
+            const state = s.future ? 'f' : !s.recorded ? 'u' : s.attended ? 'p' : 'a'
+            const mark = state === 'p' ? '✓ ' : state === 'a' ? '✗ ' : state === 'u' ? '? ' : ''
+            return (
+              <button
+                key={s.session_id} type="button"
+                className={`tm-chip ${state}`}
+                disabled={busy || s.future}
+                onClick={() => setPicking(picking === s.session_id ? null : s.session_id)}
+                title={s.future ? "This date hasn't happened yet" : state === 'u' ? 'Not recorded yet — tap to record' : 'Tap to change'}
+              >
+                {mark}{shortDate(s.session_date)}
+              </button>
+            )
+          })}
         </div>
       )}
-    </div>
+      {picking && sessions.some((s) => s.session_id === picking) && (
+        <div className="tm-pop">
+          <p>Was {name} at {label} on {shortDate(sessions.find((s) => s.session_id === picking).session_date)}?</p>
+          <div className="row" style={{ gap: 8 }}>
+            <button type="button" className="tm-pb yes" disabled={busy} onClick={() => choose(sessions.find((s) => s.session_id === picking), true)}>✓ Present</button>
+            <button type="button" className="tm-pb no" disabled={busy} onClick={() => choose(sessions.find((s) => s.session_id === picking), false)}>✗ Absent</button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
+
+const CSS = `
+.tm-lbl{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--text-soft)}
+.tm-link{display:flex;gap:8px;align-items:center;margin-top:8px}
+.tm-link .f{flex:1;min-width:0;background:var(--surface-2);border-radius:11px;padding:9px 11px;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tm-link .f.empty{color:var(--text-soft)}
+.tm-link .b{background:var(--maroon-900);color:#fff;border:0;border-radius:11px;padding:9px 14px;font-size:12px;font-weight:600;cursor:pointer}
+.tm-note{font-size:11px;color:var(--text-soft);line-height:1.5;margin-top:8px}
+.tm-todo{background:#FFF0D1;border:1px solid #F2C46B;border-radius:16px;padding:12px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.tm-todo b{font-family:var(--font-display);font-size:15.5px;text-transform:lowercase;display:block}
+.tm-todo small{font-size:11.5px;color:var(--text-soft)}
+.tm-go{background:var(--maroon-900);color:#fff;border:0;font-size:12px;font-weight:700;padding:8px 12px;border-radius:11px;white-space:nowrap;cursor:pointer}
+.tm-sum{display:grid;grid-template-columns:repeat(4,1fr);text-align:center;padding:12px 6px}
+.tm-sum>div+div{border-left:1px solid var(--line)}
+.tm-sum b{font-family:var(--font-display);font-size:21px;display:block}
+.tm-sum small{font-size:10px;color:var(--text-soft)}
+.tm-filters{display:flex;gap:6px;flex-wrap:wrap}
+.tm-fl{font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:99px;background:var(--surface);border:1px solid var(--line);cursor:pointer;color:var(--text)}
+.tm-fl.on{background:var(--maroon-900);color:#fff;border-color:var(--maroon-900)}
+.tm-list{background:var(--surface);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+.tm-head,.tm-main{display:grid;grid-template-columns:1.5fr .95fr .6fr .62fr .62fr 14px;gap:4px;align-items:center;padding:0 12px;width:100%}
+.tm-head{padding-top:11px;padding-bottom:8px;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--text-soft);border-bottom:1px solid var(--line);text-align:center}
+.tm-head span:first-child{text-align:left}
+.tm-row{border-bottom:1px solid var(--line)}.tm-row:last-child{border:0}
+.tm-row.open{background:var(--surface-2)}
+.tm-main{padding-top:11px;padding-bottom:11px;background:none;border:0;text-align:left;cursor:pointer;font:inherit;color:inherit}
+.tm-who b{font-size:13.5px;display:block;overflow-wrap:anywhere}
+.tm-t{display:inline-block;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:99px;margin-top:3px}
+.tm-t.g{background:#DDF3E8;color:#1f7a55}.tm-t.o{background:#FFE7BF;color:#9a5d00}.tm-t.r{background:#FFD9DF;color:var(--wine)}
+.tm-c{text-align:center;font-size:12px;font-weight:600}
+.tm-c.yes{color:#1f7a55}.tm-c.no{color:rgba(42,20,16,.3)}.tm-c.mid{color:#9a5d00}
+.tm-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#E0A020;margin-left:3px;vertical-align:2px}
+.tm-chev{color:var(--text-soft);font-size:15px}
+.tm-det{padding:0 14px 14px}
+.tm-dl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--text-soft);margin:12px 0 6px}
+.tm-chips{display:flex;gap:6px;flex-wrap:wrap}
+.tm-chip{font-size:11.5px;font-weight:600;padding:6px 11px;border-radius:99px;border:1.5px solid var(--peach);background:#fff;cursor:pointer;color:var(--text)}
+.tm-chip.p{background:var(--green);border-color:var(--green);color:#fff}
+.tm-chip.a{background:#FFD9DF;border-color:#F3A0B0;color:var(--wine)}
+.tm-chip.u{border:1.5px dashed #D9962B;background:#FFF0D1;color:#9a5d00}
+.tm-chip.f{opacity:.4;cursor:default}
+.tm-hint{font-size:12px;color:var(--text-soft);line-height:1.6}
+.tm-pop{margin-top:10px;background:#fff;border-radius:14px;padding:11px 12px;border:1px solid var(--line)}
+.tm-pop p{font-size:12px;margin-bottom:8px}
+.tm-pb{flex:1;font-size:12.5px;font-weight:700;padding:9px;border-radius:11px;cursor:pointer}
+.tm-pb.yes{background:var(--green);color:#fff;border:0}
+.tm-pb.no{background:#fff;border:1.5px solid #F3A0B0;color:var(--wine)}
+.tm-legend{font-size:10.5px;color:var(--text-soft);text-align:center;line-height:1.6}
+`
