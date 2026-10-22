@@ -28,7 +28,7 @@ const lagosNow = () => {
  */
 export default function Home({
   firstName, isMentor, dayOfMonth, daysInMonth, monthName, money: m, reading, renewal,
-  onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onContinueReading,
+  onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, onContinueReading,
 }) {
   const { hour, day, isTuesday } = lagosNow()
   const greeting = hour < 12 ? 'good morning' : hour < 17 ? 'good afternoon' : 'good evening'
@@ -90,6 +90,16 @@ export default function Home({
           </button>
         )}
 
+        {onSelectQuiz && (
+          <button type="button" className="home-renew" onClick={onSelectQuiz} style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}>
+            <span>
+              <b>this week's class quizzes</b>
+              <small>Missed Tuesday or want to be sure? Take the quiz. Closes Saturday 11:59pm.</small>
+            </span>
+            <span className="home-go">Take it</span>
+          </button>
+        )}
+
         {/* ---------------- the doors ---------------- */}
         <div className="home-sec">Your spaces</div>
         <div className="home-tiles">
@@ -114,6 +124,12 @@ export default function Home({
             >
               <span className="home-ic">🎥</span>
               <span><b>tuesday class</b><small>{isTuesday ? "Join tonight's class" : 'Opens on Tuesdays'}</small></span>
+            </button>
+          )}
+          {onSelectQuiz && (
+            <button type="button" className="home-tile" onClick={onSelectQuiz}>
+              <span className="home-ic">✅</span>
+              <span><b>class quizzes</b><small>Did you catch it all?</small></span>
             </button>
           )}
           {isMentor && (
@@ -144,7 +160,7 @@ function RenewalNote({ renewal }) {
       <div>
         <b>{left <= 1 ? 'your access ends tomorrow' : `your access ends in ${left} days`}</b>
         <small>
-          Renew before {when} to get December free.
+          Renew before {when} to keep going.
           {!link && !renewal.is_mentor && (renewal.mentor_name
             ? ` Your mentor ${renewal.mentor_name} will send you your payment link.`
             : '')}
