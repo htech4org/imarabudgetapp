@@ -21,6 +21,7 @@ import RealisationPrompt from './components/RealisationPrompt'
 import ReviseMonth from './screens/ReviseMonth'
 
 const STORE = 'imara_woman_id'
+const RENEWAL_REMINDER_DAY = 22   // the renewal reminder starts on this day of the month
 const APP_STORE = 'imara_app_choice'   // 'budget' | 'reading' | 'team' | 'toolkit' — which side she landed on last
 
 export default function App() {
@@ -383,7 +384,7 @@ export default function App() {
     return () => { cancelled = true }
   }, [appChoice, womanId, locked])
 
-  // Renewal reminder: shown on Home from the 25th of every month until her
+  // Renewal reminder: shown on Home from the 22nd of every month until her
   // access ends, provided her end date is in the coming days (so someone paid
   // up to December doesn't see it in October).
   const paidUntil = state?.woman?.paid_until || null
@@ -394,7 +395,7 @@ export default function App() {
     const now = new Date(`${t}T00:00:00`)
     const end = new Date(`${String(paidUntil).slice(0, 10)}T00:00:00`)
     const y = Number(t.slice(0, 4)), m = Number(t.slice(5, 7)) - 1, d = Number(t.slice(8, 10))
-    const windowStart = d >= 25 ? new Date(y, m, 25) : new Date(y, m - 1, 25)   // most recent 25th
+    const windowStart = d >= RENEWAL_REMINDER_DAY ? new Date(y, m, RENEWAL_REMINDER_DAY) : new Date(y, m - 1, RENEWAL_REMINDER_DAY)   // most recent reminder day
     const daysLeft = Math.round((end - now) / 86400000)
     const reached = Math.round((end - windowStart) / 86400000)
     return daysLeft >= 1 && reached <= 16 ? daysLeft : null
