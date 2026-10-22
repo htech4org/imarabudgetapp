@@ -1,3 +1,4 @@
+import PasswordInput from '../components/PasswordInput'
 import { useState } from 'react'
 import { PRIVACY_NOTICE, CREED, CURRENCIES } from '../lib/constants'
 import { NOT_CLAIMED_MESSAGE } from '../lib/supabase'
@@ -113,12 +114,12 @@ export default function Login({ onSignup, onLogin, onClaim, busy }) {
               </div>
               <div className="field">
                 <label className="label">Choose a password</label>
-                <input className="input" value={form.password} onChange={set('password')} type="password"
+                <PasswordInput className="input" value={form.password} onChange={set('password')}
                   placeholder="At least 6 characters" autoComplete="new-password" />
               </div>
               <div className="field">
                 <label className="label">Confirm password</label>
-                <input className="input" value={form.confirm} onChange={set('confirm')} type="password"
+                <PasswordInput className="input" value={form.confirm} onChange={set('confirm')}
                   placeholder="Type it again" autoComplete="new-password" />
               </div>
             </>
@@ -133,8 +134,7 @@ export default function Login({ onSignup, onLogin, onClaim, busy }) {
               </div>
               <div className="field">
                 <label className="label">Password</label>
-                <input className="input" value={password} onChange={(e) => { setPassword(e.target.value); setError('') }}
-                  type="password" placeholder="Your password" autoComplete="current-password" />
+                <PasswordInput className="input" value={password} onChange={(e) => { setPassword(e.target.value); setError('') }} placeholder="Your password" autoComplete="current-password" />
               </div>
               <p className="tiny muted" style={{ marginTop: -6 }}>
                 First time logging in with a password?{' '}
@@ -157,13 +157,11 @@ export default function Login({ onSignup, onLogin, onClaim, busy }) {
               </div>
               <div className="field">
                 <label className="label">Choose a password</label>
-                <input className="input" value={password} onChange={(e) => { setPassword(e.target.value); setError('') }}
-                  type="password" placeholder="At least 6 characters" autoComplete="new-password" />
+                <PasswordInput className="input" value={password} onChange={(e) => { setPassword(e.target.value); setError('') }} placeholder="At least 6 characters" autoComplete="new-password" />
               </div>
               <div className="field">
                 <label className="label">Confirm password</label>
-                <input className="input" value={confirm} onChange={(e) => { setConfirm(e.target.value); setError('') }}
-                  type="password" placeholder="Type it again" autoComplete="new-password" />
+                <PasswordInput className="input" value={confirm} onChange={(e) => { setConfirm(e.target.value); setError('') }} placeholder="Type it again" autoComplete="new-password" />
               </div>
               <button type="button" className="link-inline tiny" onClick={resetToReturn}>
                 Already have a password? Log in instead
