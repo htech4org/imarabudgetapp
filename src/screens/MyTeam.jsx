@@ -133,7 +133,7 @@ export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAtt
 
               <div className="tm-list">
                 <div className="tm-head">
-                  <span>Mentee</span><span>Reading</span><span>Invested</span><span>Circle</span><span>Sisters</span><span />
+                  <span>Mentee</span><span>Reading</span><span>Invested</span><span>Circle</span><span>Sisters</span><span>Quiz</span><span />
                 </div>
                 {shown.length === 0 && <p className="tiny muted" style={{ padding: 14 }}>No one in this view.</p>}
                 {shown.map((r) => (
@@ -143,11 +143,12 @@ export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAtt
                     onToggle={() => setOpenId(openId === r.w.woman_id ? null : r.w.woman_id)}
                     onMark={onMarkAttendance}
                     hasSistersConnect={sisters_connect_weekday != null}
+                    quizList={data.quizzes}
                   />
                 ))}
               </div>
               <p className="tm-legend">
-                Reading = days read this month · Circle and Sisters = times she came out of sessions held · an amber dot means some are not recorded yet · tap a name for dates
+                Reading = days read this month · Quiz = class quizzes passed · Circle and Sisters = times she came out of sessions held · an amber dot means some are not recorded yet · tap a name for dates
               </p>
             </>
           )}
@@ -279,8 +280,12 @@ function SessionCell({ t, quiet }) {
   )
 }
 
-function TeamRow({ r, busy, open, onToggle, onMark, hasSistersConnect }) {
+const data_quizzes = (l) => l || []
+
+function TeamRow({ r, busy, open, onToggle, onMark, hasSistersConnect, quizList }) {
   const { w } = r
+  const quizTotal = (quizList || []).length
+  const quizPassed = (w.quizzes || []).filter((x) => x.passed).length
   return (
     <div className={`tm-row${open ? ' open' : ''}`}>
       <button type="button" className="tm-main" onClick={onToggle}>
@@ -292,6 +297,7 @@ function TeamRow({ r, busy, open, onToggle, onMark, hasSistersConnect }) {
         <Cell value={r.invested ? '✓' : '–'} good={r.invested} />
         <SessionCell t={r.circle} quiet={!r.tracked} />
         {hasSistersConnect ? <SessionCell t={r.sisters} quiet={!r.tracked} /> : <Cell value="–" good={false} />}
+        <Cell value={quizTotal ? `${quizPassed}/${quizTotal}` : '–'} good={quizTotal ? (quizPassed === quizTotal ? true : quizPassed === 0 ? false : null) : false} />
         <div className="tm-chev">{open ? '▾' : '›'}</div>
       </button>
 
@@ -313,6 +319,19 @@ function TeamRow({ r, busy, open, onToggle, onMark, hasSistersConnect }) {
             />
           )}
           <ClassJoins joins={w.class_joins} />
+          {(data_quizzes(quizList)).length > 0 && (
+            <>
+              <p className="tm-dl">Class quizzes</p>
+              {quizList.map((qz) => {
+                const m = (w.quizzes || []).find((x) => x.quiz_id === qz.quiz_id)
+                return (
+                  <p key={qz.quiz_id} className="tm-hint">
+                    {qz.short_title}: {m && m.attempts > 0 ? `${m.best}/${m.total}${m.passed ? ' · passed' : ' · not passed yet'} (${m.attempts} attempt${m.attempts === 1 ? '' : 's'})` : 'not taken'}
+                  </p>
+                )
+              })}
+            </>
+          )}
           <p className="tm-dl">Access</p>
           <p className="tm-hint">
             {r.status === 'pending' ? 'Awaiting payment'
@@ -407,7 +426,7 @@ const CSS = `
 .tm-fl{font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:99px;background:var(--surface);border:1px solid var(--line);cursor:pointer;color:var(--text)}
 .tm-fl.on{background:var(--maroon-900);color:#fff;border-color:var(--maroon-900)}
 .tm-list{background:var(--surface);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
-.tm-head,.tm-main{display:grid;grid-template-columns:1.5fr .95fr .6fr .62fr .62fr 14px;gap:4px;align-items:center;padding:0 12px;width:100%}
+.tm-head,.tm-main{display:grid;grid-template-columns:1.4fr .9fr .55fr .58fr .58fr .5fr 14px;gap:4px;align-items:center;padding:0 12px;width:100%}
 .tm-head{padding-top:11px;padding-bottom:8px;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--text-soft);border-bottom:1px solid var(--line);text-align:center}
 .tm-head span:first-child{text-align:left}
 .tm-row{border-bottom:1px solid var(--line)}.tm-row:last-child{border:0}

@@ -120,7 +120,7 @@ function Console({ data, password, onRefresh, busy, onLock }) {
         </div>
         <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: 6 }}>
           <div className="adm-tabs">
-            {[['budget', 'Budget'], ['reading', 'Book Reading'], ['mentors', 'Mentors'], ['attendance', 'Attendance'], ['access', 'Access']].map(([k, label]) => (
+            {[['budget', 'Budget'], ['reading', 'Book Reading'], ['mentors', 'Mentors'], ['attendance', 'Attendance'], ['quizzes', 'Quizzes'], ['access', 'Access']].map(([k, label]) => (
               <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>
             ))}
           </div>
@@ -133,6 +133,8 @@ function Console({ data, password, onRefresh, busy, onLock }) {
         <MentorsTab password={password} />
       ) : tab === 'attendance' ? (
         <AttendanceTab password={password} />
+      ) : tab === 'quizzes' ? (
+        <QuizTab password={password} />
       ) : tab === 'access' ? (
         <AccessTab password={password} />
       ) : (
@@ -668,6 +670,66 @@ function ClassTaps({ password }) {
           {shown.length === 0 && <p className="small muted" style={{ marginTop: 8 }}>No matches.</p>}
         </>
       )}
+    </div>
+  )
+}
+
+function QuizTab({ password }) {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [openId, setOpenId] = useState(null)
+
+  useEffect(() => {
+    rpc('imara_admin_quiz_overview', { p_admin_password: password })
+      .then(setData).catch((e) => setError(e.message))
+  }, [password])
+
+  if (error) return <div className="admin"><div className="error-note">{error}</div></div>
+  if (!data) return <div className="admin"><p className="small muted">Loading quiz results…</p></div>
+
+  return (
+    <div className="admin">
+      {data.length === 0 && <p className="small muted">No quizzes yet.</p>}
+      <div className="stack">
+        {data.map((q) => {
+          const pctTaken = q.eligible ? Math.round((q.taken / q.eligible) * 100) : 0
+          return (
+            <div key={q.quiz_id} className="panel">
+              <div className="row-between">
+                <div>
+                  <div className="eyebrow">{q.system === 'circle' ? 'IMARA Circle' : 'Foundation Arc'}</div>
+                  <h3 style={{ margin: '4px 0 0', fontFamily: 'var(--font-display)', fontSize: 22, textTransform: 'lowercase' }}>{q.title}</h3>
+                </div>
+                <span className={`tag ${q.closed ? 'tag-unassigned' : 'tag-good'}`}>{q.closed ? 'Closed' : 'Open'}</span>
+              </div>
+              <div className="metrics" style={{ marginTop: 14 }}>
+                <Metric k="Taken" v={`${q.taken} / ${q.eligible}`} s={`${pctTaken}% of paid women`} tone="ink" />
+                <Metric k="Passed" v={q.passed} s={`${q.pass_mark} of ${q.total} to pass`} tone="ink" />
+                <Metric k="Average best" v={q.average_best == null ? '–' : `${q.average_best} / ${q.total}`} s="Across women who took it" tone="ink" />
+              </div>
+              {q.missed.length > 0 && (
+                <p className="small" style={{ marginTop: 12 }}>
+                  <b>Most missed:</b> {q.missed.map((m) => `${m.topic} (${m.misses})`).join(' · ')}
+                </p>
+              )}
+              <button className="btn btn-soft btn-sm" style={{ marginTop: 12 }} onClick={() => setOpenId(openId === q.quiz_id ? null : q.quiz_id)}>
+                {openId === q.quiz_id ? 'Hide' : 'Show'} who has not taken it ({q.not_taken.length})
+              </button>
+              {openId === q.quiz_id && (
+                <div style={{ marginTop: 10 }}>
+                  {q.not_taken.length === 0 ? <p className="small muted">Everyone has taken it.</p> : (
+                    <p className="small" style={{ lineHeight: 1.9 }}>
+                      {q.not_taken.map((w, i) => (
+                        <span key={i}>{w.first_name}{w.mentor_name ? <span className="faint"> ({w.mentor_name})</span> : ''}{i < q.not_taken.length - 1 ? ', ' : ''}</span>
+                      ))}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
