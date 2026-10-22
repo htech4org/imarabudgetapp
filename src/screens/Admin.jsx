@@ -3,6 +3,7 @@ import { rpc } from '../lib/supabase'
 import { cohort } from '../lib/calc'
 import { ARCHETYPES } from '../lib/constants'
 import { money, moneyShort, pct, shortDate } from '../lib/format'
+import PasswordInput from '../components/PasswordInput'
 import EntryList from '../components/EntryList'
 import Leaderboard from '../components/Leaderboard'
 import ReadingLeaderboard from '../components/ReadingLeaderboard'
@@ -49,8 +50,8 @@ export default function Admin() {
           <form onSubmit={(e) => { e.preventDefault(); load(password) }} className="stack">
             <div className="field">
               <label className="label">Shared team password</label>
-              <input
-                className="input" type="password" value={password} autoFocus
+              <PasswordInput
+                value={password} autoFocus
                 onChange={(e) => { setPassword(e.target.value); setError('') }}
               />
             </div>
@@ -769,6 +770,7 @@ function AccessTab({ password }) {
           onSetExempt={(id, on) => act('imara_admin_set_exempt', { p_woman_id: id, p_exempt: on })}
           onSetEnforcement={(on) => act('imara_admin_set_enforcement', { p_on: on })}
           onSetLink={(key, value) => act('imara_admin_set_link', { p_key: key, p_value: value })}
+          onResetPassword={(id) => act('imara_admin_reset_password', { p_woman_id: id })}
         />
       </div>
       <p className="tiny faint center" style={{ marginTop: 30 }}>

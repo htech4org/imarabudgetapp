@@ -35,6 +35,7 @@ export default function AccessConsole({
   onSetExempt,       // (womanId, bool) => Promise
   onSetEnforcement,  // (bool) => Promise
   onSetLink,         // (key, value) => Promise
+  onResetPassword,   // (womanId) => Promise
 }) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('needs')   // 'needs' | 'all' | 'active' | 'exempt'
@@ -242,6 +243,17 @@ export default function AccessConsole({
                       <button className="btn-link" disabled={busy} onClick={() => editDate(r)}>
                         Edit end date
                       </button>
+                      {onResetPassword && (
+                        <button
+                          className="btn-link" disabled={busy}
+                          onClick={() => {
+                            if (!window.confirm(`Reset ${r.first_name}'s password?\n\nOnly do this after you have confirmed it is really her (a call, or a message from her saved number). She will then tap "Set one now" on the login screen and choose a new password.`)) return
+                            runAction(() => onResetPassword(r.woman_id), `${r.first_name}'s password is reset. Tell her to tap "Set one now" on the login screen.`)
+                          }}
+                        >
+                          Reset password
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
