@@ -678,7 +678,7 @@ function ClassTaps({ password }) {
 function QuizTab({ password }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
-  const [openId, setOpenId] = useState(null)
+  const [openId, setOpenId] = useState(null)   // 'quizId:taken' or 'quizId:not'
 
   useEffect(() => {
     rpc('imara_admin_quiz_overview', { p_admin_password: password })
@@ -713,10 +713,37 @@ function QuizTab({ password }) {
                   <b>Most missed:</b> {q.missed.map((m) => `${m.topic} (${m.misses})`).join(' · ')}
                 </p>
               )}
-              <button className="btn btn-soft btn-sm" style={{ marginTop: 12 }} onClick={() => setOpenId(openId === q.quiz_id ? null : q.quiz_id)}>
-                {openId === q.quiz_id ? 'Hide' : 'Show'} who has not taken it ({q.not_taken.length})
-              </button>
-              {openId === q.quiz_id && (
+              <div className="row" style={{ gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <button className={`btn btn-sm ${openId === q.quiz_id + ':taken' ? 'btn-clay' : 'btn-soft'}`}
+                  onClick={() => setOpenId(openId === q.quiz_id + ':taken' ? null : q.quiz_id + ':taken')}>
+                  Who has taken it ({q.takers.length})
+                </button>
+                <button className={`btn btn-sm ${openId === q.quiz_id + ':not' ? 'btn-clay' : 'btn-soft'}`}
+                  onClick={() => setOpenId(openId === q.quiz_id + ':not' ? null : q.quiz_id + ':not')}>
+                  Who has not ({q.not_taken.length})
+                </button>
+              </div>
+              {openId === q.quiz_id + ':taken' && (
+                <div style={{ marginTop: 10 }}>
+                  {q.takers.length === 0 ? <p className="small muted">No one has taken it yet.</p> : (
+                    <div className="stack-s" style={{ gap: 6 }}>
+                      {q.takers.map((w, i) => (
+                        <div key={i} className="row-between" style={{ borderBottom: '1px solid var(--line)', padding: '6px 0' }}>
+                          <span className="small">
+                            <b>{w.first_name}</b>{w.mentor_name ? <span className="faint"> ({w.mentor_name})</span> : ''}
+                          </span>
+                          <span className="small">
+                            {w.best}/{w.total}{' '}
+                            <span className={`tag ${w.passed ? 'tag-good' : 'tag-unassigned'}`}>{w.passed ? 'Passed' : 'Not passed'}</span>
+                            <span className="faint"> · {w.attempts} attempt{w.attempts === 1 ? '' : 's'}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {openId === q.quiz_id + ':not' && (
                 <div style={{ marginTop: 10 }}>
                   {q.not_taken.length === 0 ? <p className="small muted">Everyone has taken it.</p> : (
                     <p className="small" style={{ lineHeight: 1.9 }}>
