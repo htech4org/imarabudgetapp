@@ -16,6 +16,7 @@ import MyTeam from './screens/MyTeam'
 import Locked from './screens/Locked'
 import Toolkit from './screens/Toolkit'
 import TuesdayClass from './screens/TuesdayClass'
+import Quiz from './screens/Quiz'
 import AddEntry from './components/AddEntry'
 import RealisationPrompt from './components/RealisationPrompt'
 import ReviseMonth from './screens/ReviseMonth'
@@ -523,6 +524,7 @@ export default function App() {
           onSelectTeam={() => setAppChoice('team')}
           onSelectToolkit={() => setAppChoice('toolkit')}
           onSelectTuesday={() => setAppChoice('tuesday')}
+          onSelectQuiz={() => setAppChoice('quiz')}
         />
         {toastEl}
       </>
@@ -535,6 +537,17 @@ export default function App() {
       <>
         {homeBar}
         <Toolkit data={toolkitData} onSwitchApp={switchApp} onSignOut={signOut} />
+        {toastEl}
+      </>
+    )
+  }
+
+  // ------------------------------------------------------------ Class quiz
+  if (appChoice === 'quiz') {
+    return (
+      <>
+        {homeBar}
+        <Quiz womanId={womanId} onError={(m) => flash(m, true)} onSwitchApp={switchApp} onSignOut={signOut} />
         {toastEl}
       </>
     )
