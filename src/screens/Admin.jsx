@@ -680,16 +680,31 @@ function QuizTab({ password }) {
   const [error, setError] = useState('')
   const [openId, setOpenId] = useState(null)   // 'quizId:taken' or 'quizId:not'
 
-  useEffect(() => {
+  const [note, setNote] = useState('')
+  const [granting, setGranting] = useState(null)
+
+  const load = () =>
     rpc('imara_admin_quiz_overview', { p_admin_password: password })
       .then(setData).catch((e) => setError(e.message))
-  }, [password])
 
-  if (error) return <div className="admin"><div className="error-note">{error}</div></div>
+  useEffect(() => { load() }, [password])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const grantRetake = async (quizId, w) => {
+    setGranting(w.woman_id); setError(''); setNote('')
+    try {
+      await rpc('imara_admin_quiz_grant_retake', { p_admin_password: password, p_woman_id: w.woman_id, p_quiz_id: quizId })
+      await load()
+      setNote(`${w.first_name} has one more retake.`)
+    } catch (e) { setError(e.message) } finally { setGranting(null) }
+  }
+
+  if (!data && error) return <div className="admin"><div className="error-note">{error}</div></div>
   if (!data) return <div className="admin"><p className="small muted">Loading quiz results…</p></div>
 
   return (
     <div className="admin">
+      {error && <div className="error-note" style={{ marginBottom: 12 }}>{error}</div>}
+      {note && <p className="small" style={{ marginBottom: 12, color: 'var(--green)' }}>{note}</p>}
       {data.length === 0 && <p className="small muted">No quizzes yet.</p>}
       <div className="stack">
         {data.map((q) => {
@@ -736,6 +751,12 @@ function QuizTab({ password }) {
                             {w.best}/{w.total}{' '}
                             <span className={`tag ${w.passed ? 'tag-good' : 'tag-unassigned'}`}>{w.passed ? 'Passed' : 'Not passed'}</span>
                             <span className="faint"> · {w.attempts} attempt{w.attempts === 1 ? '' : 's'}</span>
+                            {!w.passed && !q.closed && (
+                              <button className="btn btn-soft btn-sm" style={{ marginLeft: 8 }} disabled={granting === w.woman_id}
+                                onClick={() => grantRetake(q.quiz_id, w)}>
+                                {granting === w.woman_id ? 'Adding…' : w.attempts_left > 0 ? `+1 retake (has ${w.attempts_left})` : 'Give 1 more retake'}
+                              </button>
+                            )}
                           </span>
                         </div>
                       ))}
