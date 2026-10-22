@@ -144,7 +144,7 @@ function RenewalNote({ renewal }) {
       <div>
         <b>{left <= 1 ? 'your access ends tomorrow' : `your access ends in ${left} days`}</b>
         <small>
-          Renew before {when} to keep going.
+          Renew before {when} to get December free.
           {!link && !renewal.is_mentor && (renewal.mentor_name
             ? ` Your mentor ${renewal.mentor_name} will send you your payment link.`
             : '')}
