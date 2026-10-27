@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { CREED } from '../lib/constants'
 
+// Foundation Arc classes have ended. Set to true to show its Tuesday link again.
+const FOUNDATION_ARC_ACTIVE = false
+
 // Tuesday's two live classes. The links come from the database
 // (imara_tuesday_class), which only returns them to a woman with active access
 // and only on a Tuesday (Lagos time). On any other day `data.is_tuesday` is
@@ -50,11 +53,13 @@ export default function TuesdayClass({ data, onJoin, onSwitchApp, onSignOut }) {
               )}
             </div>
 
-            <div className="card">
-              <span className="small" style={{ fontWeight: 700, fontSize: 15 }}>FOUNDATION ARC</span>
-              <p className="tiny muted" style={{ margin: '6px 0 14px', lineHeight: 1.7 }}>Live on YouTube.</p>
-              <JoinButton href={data.foundation?.link} label="Watch Live on YouTube" onClick={() => onJoin?.('foundation')} />
-            </div>
+            {FOUNDATION_ARC_ACTIVE && (
+              <div className="card">
+                <span className="small" style={{ fontWeight: 700, fontSize: 15 }}>FOUNDATION ARC</span>
+                <p className="tiny muted" style={{ margin: '6px 0 14px', lineHeight: 1.7 }}>Live on YouTube.</p>
+                <JoinButton href={data.foundation?.link} label="Watch Live on YouTube" onClick={() => onJoin?.('foundation')} />
+              </div>
+            )}
 
             <p className="tiny muted" style={{ lineHeight: 1.7 }}>
               Joining a class from here is logged with the time, so your mentor can see you came.
