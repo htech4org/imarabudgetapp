@@ -138,10 +138,13 @@ export default function Home({
               <span><b>tuesday class</b><small>{isTuesday ? "Join tonight's class" : 'Opens on Tuesdays'}</small></span>
             </button>
           )}
-          {onSelectQuiz && openQuizzes.length > 0 && (
-            <button type="button" className="home-tile" onClick={onSelectQuiz}>
+          {onSelectQuiz && (
+            <button
+              type="button" className={`home-tile${openQuizzes.length > 0 ? '' : ' off'}`}
+              onClick={openQuizzes.length > 0 ? onSelectQuiz : undefined} disabled={openQuizzes.length === 0}
+            >
               <span className="home-ic">✅</span>
-              <span><b>class quizzes</b><small>Did you catch it all?</small></span>
+              <span><b>class quizzes</b><small>{openQuizzes.length > 0 ? 'Did you catch it all?' : 'Opens when a quiz is live'}</small></span>
             </button>
           )}
           {isMentor && (
