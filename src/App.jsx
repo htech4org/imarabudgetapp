@@ -56,6 +56,7 @@ export default function App() {
   const [renewalInfo, setRenewalInfo] = useState(null)  // { status, paid_until, is_mentor, mentor_name, link }
   const [homeReading, setHomeReading] = useState(null)  // imara_home_reading result
   const [homeRenewal, setHomeRenewal] = useState(null)  // renewal reminder on Home
+  const [homeQuizzes, setHomeQuizzes] = useState(null)  // imara_quiz_list, for the Home banner
 
   // Resume her session from this device.
   useEffect(() => {
@@ -218,7 +219,7 @@ export default function App() {
     localStorage.removeItem(APP_STORE)
     setState(null); setView('dashboard'); setAppChoiceState(null)
     setReadingBooks([]); setReadingProgress([]); setReadingBoard([]); setReadingView('list'); setReadingChapter(null)
-    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null); setHomeReading(null); setHomeRenewal(null)
+    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null); setHomeReading(null); setHomeRenewal(null); setHomeQuizzes(null)
   }
 
   const switchApp = () => {
@@ -410,6 +411,16 @@ export default function App() {
     return () => { cancelled = true }
   }, [appChoice, womanId, locked, renewalDaysLeft])
 
+  // Class quizzes: the Home banner and tile only show while a quiz is open.
+  useEffect(() => {
+    if (appChoice || !womanId || locked) return
+    let cancelled = false
+    rpc('imara_quiz_list', { p_woman_id: womanId })
+      .then((d) => { if (!cancelled) setHomeQuizzes(d) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [appChoice, womanId, locked])
+
   const continueReading = async (r) => {
     setAppChoice('reading')
     await openChapter(r.book_id, r.title, r.total_chapters, r.current_chapter)
@@ -524,6 +535,7 @@ export default function App() {
           onSelectTeam={() => setAppChoice('team')}
           onSelectToolkit={() => setAppChoice('toolkit')}
           onSelectTuesday={() => setAppChoice('tuesday')}
+          quizzes={homeQuizzes}
           onSelectQuiz={() => setAppChoice('quiz')}
         />
         {toastEl}
