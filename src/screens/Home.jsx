@@ -1,4 +1,7 @@
 import { CREED } from '../lib/constants'
+
+// Foundation Arc classes have ended. Set to true to show its Tuesday link again.
+const FOUNDATION_ARC_ACTIVE = false
 import { money } from '../lib/format'
 
 // "ada" / "ADA" / "mary jane" -> "Ada" / "Mary Jane"
@@ -28,9 +31,18 @@ const lagosNow = () => {
  */
 export default function Home({
   firstName, isMentor, dayOfMonth, daysInMonth, monthName, money: m, reading, renewal,
-  onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, onContinueReading,
+  onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading,
 }) {
   const { hour, day, isTuesday } = lagosNow()
+  // Quizzes show only while one is open (not past its deadline).
+  const openQuizzes = (quizzes || []).filter((q) => !q.closed)
+  const quizToDo = openQuizzes.some((q) => !q.passed && q.attempts_left > 0)
+  const quizCloses = openQuizzes.length
+    ? openQuizzes.map((q) => q.closes_at).filter(Boolean).sort()[0]
+    : null
+  const quizClosesText = quizCloses
+    ? `${new Date(quizCloses).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Africa/Lagos' })} ${new Date(quizCloses).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Africa/Lagos' }).replace(' ', '').toLowerCase()}`
+    : ''
   const greeting = hour < 12 ? 'good morning' : hour < 17 ? 'good afternoon' : 'good evening'
   const name = properName(firstName)
 
@@ -84,17 +96,17 @@ export default function Home({
           <button type="button" className="home-live" onClick={onSelectTuesday}>
             <span>
               <b>class is live tonight</b>
-              <small>IMARA Circle · Foundation Arc</small>
+              <small>{FOUNDATION_ARC_ACTIVE ? 'IMARA Circle · Foundation Arc' : 'IMARA Circle'}</small>
             </span>
             <span className="home-go">Join</span>
           </button>
         )}
 
-        {onSelectQuiz && (
+        {onSelectQuiz && quizToDo && (
           <button type="button" className="home-renew" onClick={onSelectQuiz} style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}>
             <span>
               <b>this week's class quizzes</b>
-              <small>Missed Tuesday or want to be sure? Take the quiz. Closes Saturday 11:59pm.</small>
+              <small>Missed Tuesday or want to be sure? Take the quiz. Closes {quizClosesText}.</small>
             </span>
             <span className="home-go">Take it</span>
           </button>
@@ -126,7 +138,7 @@ export default function Home({
               <span><b>tuesday class</b><small>{isTuesday ? "Join tonight's class" : 'Opens on Tuesdays'}</small></span>
             </button>
           )}
-          {onSelectQuiz && (
+          {onSelectQuiz && openQuizzes.length > 0 && (
             <button type="button" className="home-tile" onClick={onSelectQuiz}>
               <span className="home-ic">✅</span>
               <span><b>class quizzes</b><small>Did you catch it all?</small></span>
@@ -160,7 +172,7 @@ function RenewalNote({ renewal }) {
       <div>
         <b>{left <= 1 ? 'your access ends tomorrow' : `your access ends in ${left} days`}</b>
         <small>
-          Renew before {when} to GET DECEMBER FREE.
+          Renew before {when} to keep going.
           {!link && !renewal.is_mentor && (renewal.mentor_name
             ? ` Your mentor ${renewal.mentor_name} will send you your payment link.`
             : '')}
