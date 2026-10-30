@@ -26,16 +26,21 @@ export default function TuesdayClass({ data, onJoin, onSwitchApp, onSignOut }) {
     <div className="shell fade-in">
       <div className="topbar">
         <div className="eyebrow" style={{ color: 'var(--peach)' }}>Tuesday Class</div>
-        <h1 className="display d-lg" style={{ marginTop: 5 }}>choose your class</h1>
+        <h1 className="display d-lg" style={{ marginTop: 5 }}>{data.restream && !data.is_tuesday ? "watch tuesday's class" : 'choose your class'}</h1>
       </div>
 
       <div className="pad" style={{ paddingTop: 24 }}>
-        {!data.is_tuesday ? (
+        {data.restream && !data.is_tuesday ? (
+          <div className="stack" style={{ gap: 14 }}>
+            <RestreamCard link={data.restream.link} />
+          </div>
+        ) : !data.is_tuesday ? (
           <div className="empty-state">
             <p className="small muted">Tuesday classes open on Tuesdays. Come back then.</p>
           </div>
         ) : (
           <div className="stack" style={{ gap: 14 }}>
+            {data.restream && <RestreamCard link={data.restream.link} />}
             <div className="card">
               <span className="small" style={{ fontWeight: 700, fontSize: 15 }}>IMARA CIRCLE</span>
               <p className="tiny muted" style={{ margin: '6px 0 12px', lineHeight: 1.7 }}>Live on Zoom.</p>
@@ -76,6 +81,17 @@ export default function TuesdayClass({ data, onJoin, onSwitchApp, onSignOut }) {
           <button className="btn-link" onClick={onSignOut}>Sign out of this device</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function RestreamCard({ link }) {
+  return (
+    <div className="card">
+      <span className="tag">Restream</span>
+      <p className="small" style={{ fontWeight: 700, fontSize: 15, marginTop: 10 }}>INVESTMENT + NEW IMARA UNVEILING</p>
+      <p className="tiny muted" style={{ margin: '6px 0 14px', lineHeight: 1.7 }}>Tuesday's class, live again tonight at 8pm on YouTube.</p>
+      <JoinButton href={link} label="Watch Tuesday stream live" />
     </div>
   )
 }

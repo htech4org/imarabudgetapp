@@ -2,6 +2,10 @@ import { CREED } from '../lib/constants'
 
 // Foundation Arc classes have ended. Set to true to show its Tuesday link again.
 const FOUNDATION_ARC_ACTIVE = false
+
+// One-off restream of Tuesday's class on YouTube (Lagos date, YYYY-MM-DD).
+// The link itself only comes from the database, on this day, to women with access.
+const RESTREAM_DATE = '2026-10-30'
 import { money } from '../lib/format'
 
 // "ada" / "ADA" / "mary jane" -> "Ada" / "Mary Jane"
@@ -17,7 +21,8 @@ const lagosNow = () => {
   const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', hour: 'numeric', hour12: false }).format(now)) % 24
   const day = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', weekday: 'short', day: 'numeric', month: 'short' }).format(now)
   const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Lagos', weekday: 'long' }).format(now)
-  return { hour, day: day.replace(',', ''), isTuesday: weekday === 'Tuesday' }
+  const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+  return { hour, day: day.replace(',', ''), isTuesday: weekday === 'Tuesday', isRestream: ymd === RESTREAM_DATE }
 }
 
 /**
@@ -33,7 +38,8 @@ export default function Home({
   firstName, isMentor, dayOfMonth, daysInMonth, monthName, money: m, reading, renewal,
   onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading,
 }) {
-  const { hour, day, isTuesday } = lagosNow()
+  const { hour, day, isTuesday: isTuesdayRaw, isRestream } = lagosNow()
+  const isTuesday = isTuesdayRaw || isRestream
   // Quizzes show only while one is open (not past its deadline).
   const openQuizzes = (quizzes || []).filter((q) => !q.closed)
   const quizToDo = openQuizzes.some((q) => !q.passed && q.attempts_left > 0)
@@ -95,10 +101,10 @@ export default function Home({
         {isTuesday && onSelectTuesday && (
           <button type="button" className="home-live" onClick={onSelectTuesday}>
             <span>
-              <b>class is live tonight</b>
-              <small>{FOUNDATION_ARC_ACTIVE ? 'IMARA Circle · Foundation Arc' : 'IMARA Circle'}</small>
+              <b>{isRestream && !isTuesdayRaw ? 'investment + new imara unveiling live tonight' : 'class is live tonight'}</b>
+              <small>{isRestream && !isTuesdayRaw ? "Tuesday's class restream · 8pm on YouTube" : (FOUNDATION_ARC_ACTIVE ? 'IMARA Circle · Foundation Arc' : 'IMARA Circle')}</small>
             </span>
-            <span className="home-go">Join</span>
+            <span className="home-go">{isRestream && !isTuesdayRaw ? 'Watch' : 'Join'}</span>
           </button>
         )}
 
@@ -135,7 +141,7 @@ export default function Home({
               onClick={isTuesday ? onSelectTuesday : undefined} disabled={!isTuesday}
             >
               <span className="home-ic">🎥</span>
-              <span><b>tuesday class</b><small>{isTuesday ? "Join tonight's class" : 'Opens on Tuesdays'}</small></span>
+              <span><b>tuesday class</b><small>{isRestream && !isTuesdayRaw ? 'Live tonight at 8pm' : isTuesday ? "Join tonight's class" : 'Opens on Tuesdays'}</small></span>
             </button>
           )}
           {onSelectQuiz && (
