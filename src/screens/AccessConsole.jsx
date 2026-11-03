@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 
+// The one-tap access date (last day she can use the app). Change here for the next cycle.
+const ACCESS_UNTIL = '2026-12-25'
+const ACCESS_UNTIL_LABEL = 'Dec 25'
+
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 function fmt(iso) {
@@ -93,9 +97,9 @@ export default function AccessConsole({
 
   const markSelected = () => runAction(async () => {
     const ids = [...selected]
-    await onMarkPaid(ids, 30)
+    for (const id of ids) await onSetPaidUntil(id, ACCESS_UNTIL)
     setSelected(new Set())
-  }, 'Marked paid for 30 days.')
+  }, `Access given until ${ACCESS_UNTIL_LABEL}.`)
 
   const editDate = (r) => runAction(async () => {
     const v = window.prompt(
@@ -200,7 +204,7 @@ export default function AccessConsole({
               disabled={busy || selected.size === 0}
               onClick={markSelected}
             >
-              Mark {selected.size} selected paid · +30 days
+              Give {selected.size} selected access to {ACCESS_UNTIL_LABEL}
             </button>
           </div>
 
@@ -230,9 +234,9 @@ export default function AccessConsole({
                     <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                       <button
                         className="btn btn-sm btn-soft" disabled={busy}
-                        onClick={() => runAction(() => onMarkPaid([r.woman_id], 30), `${r.first_name} marked paid for 30 days.`)}
+                        onClick={() => runAction(() => onSetPaidUntil(r.woman_id, ACCESS_UNTIL), `${r.first_name} has access until ${ACCESS_UNTIL_LABEL}.`)}
                       >
-                        Paid · +30 days
+                        Give access to {ACCESS_UNTIL_LABEL}
                       </button>
                       <button
                         className={`btn btn-sm ${r.access_exempt ? 'btn-clay' : 'btn-soft'}`} disabled={busy}
