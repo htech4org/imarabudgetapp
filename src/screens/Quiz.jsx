@@ -5,7 +5,7 @@ import { CREED } from '../lib/constants'
 // Class quizzes. Questions come from imara_quiz_get (no answers). Correct
 // answers only come back from the database once she has passed.
 
-const SYSTEM_LABEL = { circle: 'IMARA Circle', foundation: 'Foundation Arc' }
+const SYSTEM_LABEL = { circle: 'IMARA Circle', foundation: 'Foundation Arc', journey: 'IMARA Journey' }
 
 function closesText(iso) {
   if (!iso) return ''
