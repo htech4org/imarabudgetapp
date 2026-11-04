@@ -713,7 +713,7 @@ function QuizTab({ password }) {
             <div key={q.quiz_id} className="panel">
               <div className="row-between">
                 <div>
-                  <div className="eyebrow">{q.system === 'circle' ? 'IMARA Circle' : 'Foundation Arc'}</div>
+                  <div className="eyebrow">{q.system === 'circle' ? 'IMARA Circle' : q.system === 'journey' ? 'IMARA Journey' : 'Foundation Arc'}</div>
                   <h3 style={{ margin: '4px 0 0', fontFamily: 'var(--font-display)', fontSize: 22, textTransform: 'lowercase' }}>{q.title}</h3>
                 </div>
                 <span className={`tag ${q.closed ? 'tag-unassigned' : 'tag-good'}`}>{q.closed ? 'Closed' : 'Open'}</span>
