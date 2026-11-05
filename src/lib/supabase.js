@@ -48,6 +48,7 @@ const MESSAGES = {
   not_a_mentor:        "That account is not flagged as a mentor.",
   not_your_team:       "That woman is not on your team.",
   cannot_self_mentor:  "A mentor can't be assigned as her own mentor.",
+  future_session:      "That date has not happened yet.",
   not_leader:          "Only the Trybe Leader can open this.",
   empty_report:        "Write at least one line before sending.",
   report_too_long:     "Keep each answer under 2,000 characters.",
