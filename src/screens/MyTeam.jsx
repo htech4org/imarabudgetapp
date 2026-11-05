@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { CREED } from '../lib/constants'
+import LeaderReport from '../components/LeaderReport'
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August',
   'September','October','November','December']
@@ -38,7 +39,7 @@ function daysUntil(iso) {
 // Everything a mentor needs to judge her team at a glance. One row per
 // mentee in shared columns; tap a name to open her dates and mark attendance.
 // A past session is one of three things: present, absent, or not recorded yet.
-export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAttendance, onSetTeamLink, onSwitchApp, onSignOut }) {
+export default function MyTeam({ womanId, onError, onNotice, mentorName, data, busy, onSetWeekday, onMarkAttendance, onSetTeamLink, onSwitchApp, onSignOut }) {
   const [filter, setFilter] = useState('all')   // all | attention | record | renew
   const [openId, setOpenId] = useState(null)
 
@@ -99,6 +100,7 @@ export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAtt
 
       <div className="pad" style={{ paddingTop: 20 }}>
         <div className="stack" style={{ gap: 12 }}>
+          {womanId && <LeaderReport womanId={womanId} onError={onError} onNotice={onNotice} />}
           <TeamLink link={data.team_link} busy={busy} onSave={onSetTeamLink} />
           <SistersConnectSetup weekday={sisters_connect_weekday} busy={busy} onSet={onSetWeekday} />
 
@@ -133,7 +135,7 @@ export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAtt
 
               <div className="tm-list">
                 <div className="tm-head">
-                  <span>Mentee</span><span>Reading</span><span>Invested</span><span>Circle</span><span>Sisters</span><span>Quiz</span><span />
+                  <span>Mentee</span><span>Reading</span><span>Invested</span><span>Circle</span><span>Mastermind</span><span>Quiz</span><span />
                 </div>
                 {shown.length === 0 && <p className="tiny muted" style={{ padding: 14 }}>No one in this view.</p>}
                 {shown.map((r) => (
@@ -148,7 +150,7 @@ export default function MyTeam({ mentorName, data, busy, onSetWeekday, onMarkAtt
                 ))}
               </div>
               <p className="tm-legend">
-                Reading = days read this month · Quiz = class quizzes passed · Circle and Sisters = times she came out of sessions held · an amber dot means some are not recorded yet · tap a name for dates
+                Reading = days read this month · Quiz = class quizzes passed · Circle and Mastermind = times she came out of sessions held · an amber dot means some are not recorded yet · tap a name for dates
               </p>
             </>
           )}
@@ -222,7 +224,7 @@ function SistersConnectSetup({ weekday, busy, onSet }) {
   if (!editing) {
     return (
       <div className="row-between" style={{ flexWrap: 'wrap', gap: 6 }}>
-        <span className="tiny muted">Your Sisters Connect group meets on {WEEKDAYS[weekday]}s</span>
+        <span className="tiny muted">Your Mastermind group meets on {WEEKDAYS[weekday]}s</span>
         <button className="btn-link" onClick={() => setEditing(true)}>Change</button>
       </div>
     )
@@ -231,7 +233,7 @@ function SistersConnectSetup({ weekday, busy, onSet }) {
   return (
     <div className="card">
       <p className="small" style={{ fontWeight: 600, marginBottom: 10 }}>
-        Which day does your Sisters Connect group meet?
+        Which day does your Mastermind group meet?
       </p>
       <p className="tiny muted" style={{ marginBottom: 12 }}>
         This sets up every session date for the rest of the quarter automatically,
@@ -314,7 +316,7 @@ function TeamRow({ r, busy, open, onToggle, onMark, hasSistersConnect, quizList 
           />
           {hasSistersConnect && (
             <SessionRow
-              label="Sisters Connect" sessions={w.sisters_connect} type="sisters_connect"
+              label="Mastermind meeting" sessions={w.sisters_connect} type="sisters_connect"
               womanId={w.woman_id} name={w.first_name} busy={busy} onMark={onMark}
             />
           )}

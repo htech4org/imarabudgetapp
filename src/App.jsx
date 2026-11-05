@@ -17,6 +17,7 @@ import Locked from './screens/Locked'
 import Toolkit from './screens/Toolkit'
 import TuesdayClass from './screens/TuesdayClass'
 import Quiz from './screens/Quiz'
+import TrybeLeader from './screens/TrybeLeader'
 import AddEntry from './components/AddEntry'
 import RealisationPrompt from './components/RealisationPrompt'
 import ReviseMonth from './screens/ReviseMonth'
@@ -56,6 +57,7 @@ export default function App() {
   const [renewalInfo, setRenewalInfo] = useState(null)  // { status, paid_until, is_mentor, mentor_name, link }
   const [homeReading, setHomeReading] = useState(null)  // imara_home_reading result
   const [homeRenewal, setHomeRenewal] = useState(null)  // renewal reminder on Home
+  const [leaderHome, setLeaderHome] = useState(null)  // imara_leader_home: Trybe Leader flag and report reminders
   const [homeQuizzes, setHomeQuizzes] = useState(null)  // imara_quiz_list, for the Home banner
 
   // Resume her session from this device.
@@ -219,7 +221,7 @@ export default function App() {
     localStorage.removeItem(APP_STORE)
     setState(null); setView('dashboard'); setAppChoiceState(null)
     setReadingBooks([]); setReadingProgress([]); setReadingBoard([]); setReadingView('list'); setReadingChapter(null)
-    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null); setHomeReading(null); setHomeRenewal(null); setHomeQuizzes(null)
+    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null); setHomeReading(null); setHomeRenewal(null); setHomeQuizzes(null); setLeaderHome(null)
   }
 
   const switchApp = () => {
@@ -421,6 +423,16 @@ export default function App() {
     return () => { cancelled = true }
   }, [appChoice, womanId, locked])
 
+  // Trybe Leader tile and mentors' report reminders on Home.
+  useEffect(() => {
+    if (appChoice || !womanId || locked) return
+    let cancelled = false
+    rpc('imara_leader_home', { p_woman_id: womanId })
+      .then((d) => { if (!cancelled) setLeaderHome(d) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [appChoice, womanId, locked])
+
   const continueReading = async (r) => {
     setAppChoice('reading')
     await openChapter(r.book_id, r.title, r.total_chapters, r.current_chapter)
@@ -536,6 +548,8 @@ export default function App() {
           onSelectToolkit={() => setAppChoice('toolkit')}
           onSelectTuesday={() => setAppChoice('tuesday')}
           quizzes={homeQuizzes}
+          leaderHome={leaderHome}
+          onSelectLeader={() => setAppChoice('leader')}
           onSelectQuiz={() => setAppChoice('quiz')}
         />
         {toastEl}
@@ -576,12 +590,26 @@ export default function App() {
     )
   }
 
+  // ----------------------------------------------------------- Trybe Leader
+  if (appChoice === 'leader') {
+    return (
+      <>
+        {homeBar}
+        <TrybeLeader womanId={womanId} onError={(m) => flash(m, true)} onSwitchApp={switchApp} onSignOut={signOut} />
+        {toastEl}
+      </>
+    )
+  }
+
   // ---------------------------------------------------------------- My Team
   if (appChoice === 'team') {
     return (
       <>
         {homeBar}
         <MyTeam
+          womanId={womanId}
+          onError={(m) => flash(m, true)}
+          onNotice={(m) => flash(m)}
           mentorName={state.woman.first_name}
           data={teamData}
           busy={busy}
