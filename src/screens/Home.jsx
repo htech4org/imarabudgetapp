@@ -109,7 +109,7 @@ export default function Home({
         )}
 
         {/* ---------------- mentor: report to the Trybe Leader ---------------- */}
-        {isMentor && leaderHome && (leaderHome.week_due || leaderHome.week_late || leaderHome.month_due) && (
+        {isMentor && !leaderHome?.is_leader && leaderHome && (leaderHome.week_due || leaderHome.week_late || leaderHome.month_due) && (
           <button type="button" className="home-renew" onClick={onSelectTeam} style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}>
             <span>
               <b>{leaderHome.week_late ? "last week's report is missing" : leaderHome.week_due ? "this week's report is due" : "this month's report is due"}</b>
@@ -174,7 +174,7 @@ export default function Home({
               <span><b>my mentors</b><small>Their numbers and reports</small></span>
             </button>
           )}
-          {isMentor && (
+          {isMentor && !leaderHome?.is_leader && (
             <button type="button" className="home-tile wide" onClick={onSelectTeam}>
               <span className="home-ic">👥</span>
               <span><b>my team</b><small>Your team and your reports</small></span>
