@@ -36,7 +36,7 @@ const lagosNow = () => {
  */
 export default function Home({
   firstName, isMentor, dayOfMonth, daysInMonth, monthName, money: m, reading, renewal,
-  onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading,
+  onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading, leaderHome, onSelectLeader,
 }) {
   const { hour, day, isTuesday: isTuesdayRaw, isRestream } = lagosNow()
   const isTuesday = isTuesdayRaw || isRestream
@@ -108,6 +108,21 @@ export default function Home({
           </button>
         )}
 
+        {/* ---------------- mentor: report to the Trybe Leader ---------------- */}
+        {isMentor && leaderHome && (leaderHome.week_due || leaderHome.week_late || leaderHome.month_due) && (
+          <button type="button" className="home-renew" onClick={onSelectTeam} style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}>
+            <span>
+              <b>{leaderHome.week_late ? "last week's report is missing" : leaderHome.week_due ? "this week's report is due" : "this month's report is due"}</b>
+              <small>
+                {leaderHome.week_late || leaderHome.week_due
+                  ? 'A few lines for your Trybe Leader. Weekly reports are due Sunday 10pm.'
+                  : 'A few lines for your Trybe Leader. Due on the last day of the month.'}
+              </small>
+            </span>
+            <span className="home-go">Write</span>
+          </button>
+        )}
+
         {onSelectQuiz && quizToDo && (
           <button type="button" className="home-renew" onClick={onSelectQuiz} style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}>
             <span>
@@ -153,10 +168,16 @@ export default function Home({
               <span><b>class quizzes</b><small>{openQuizzes.length > 0 ? 'Did you catch it all?' : 'Opens when a quiz is live'}</small></span>
             </button>
           )}
+          {leaderHome?.is_leader && onSelectLeader && (
+            <button type="button" className="home-tile wide" onClick={onSelectLeader}>
+              <span className="home-ic">👑</span>
+              <span><b>my mentors</b><small>Their numbers and reports</small></span>
+            </button>
+          )}
           {isMentor && (
             <button type="button" className="home-tile wide" onClick={onSelectTeam}>
               <span className="home-ic">👥</span>
-              <span><b>my team</b><small>File this month's report</small></span>
+              <span><b>my team</b><small>Your team and your reports</small></span>
             </button>
           )}
         </div>
