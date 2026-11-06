@@ -19,6 +19,7 @@ import TuesdayClass from './screens/TuesdayClass'
 import Quiz from './screens/Quiz'
 import TrybeLeader from './screens/TrybeLeader'
 import AssistantAttendance from './screens/AssistantAttendance'
+import Recruiter from './screens/Recruiter'
 import AddEntry from './components/AddEntry'
 import RealisationPrompt from './components/RealisationPrompt'
 import ReviseMonth from './screens/ReviseMonth'
@@ -58,6 +59,7 @@ export default function App() {
   const [renewalInfo, setRenewalInfo] = useState(null)  // { status, paid_until, is_mentor, mentor_name, link }
   const [homeReading, setHomeReading] = useState(null)  // imara_home_reading result
   const [homeRenewal, setHomeRenewal] = useState(null)  // renewal reminder on Home
+  const [recruiterState, setRecruiterState] = useState(null)  // imara_recruiter_state: banner / tile on Home
   const [assistantInfo, setAssistantInfo] = useState(null)  // imara_assistant_info: whom she helps with attendance
   const [leaderHome, setLeaderHome] = useState(null)  // imara_leader_home: Trybe Leader flag and report reminders
   const [homeQuizzes, setHomeQuizzes] = useState(null)  // imara_quiz_list, for the Home banner
@@ -223,7 +225,7 @@ export default function App() {
     localStorage.removeItem(APP_STORE)
     setState(null); setView('dashboard'); setAppChoiceState(null)
     setReadingBooks([]); setReadingProgress([]); setReadingBoard([]); setReadingView('list'); setReadingChapter(null)
-    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null); setHomeReading(null); setHomeRenewal(null); setHomeQuizzes(null); setLeaderHome(null); setAssistantInfo(null)
+    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null); setHomeReading(null); setHomeRenewal(null); setHomeQuizzes(null); setLeaderHome(null); setAssistantInfo(null); setRecruiterState(null)
   }
 
   const switchApp = () => {
@@ -432,6 +434,9 @@ export default function App() {
     rpc('imara_leader_home', { p_woman_id: womanId })
       .then((d) => { if (!cancelled) setLeaderHome(d) })
       .catch(() => {})
+    rpc('imara_recruiter_state', { p_woman_id: womanId })
+      .then((d) => { if (!cancelled) setRecruiterState(d) })
+      .catch(() => {})
     rpc('imara_assistant_info', { p_woman_id: womanId })
       .then((d) => { if (!cancelled) setAssistantInfo(d) })
       .catch(() => {})
@@ -555,6 +560,14 @@ export default function App() {
           quizzes={homeQuizzes}
           leaderHome={leaderHome}
           assistantInfo={assistantInfo}
+          recruiter={recruiterState}
+          onSelectRecruiter={() => setAppChoice('recruiter')}
+          onRegisterRecruiter={async () => {
+            try {
+              setRecruiterState(await rpc('imara_recruiter_register', { p_woman_id: womanId }))
+              flash("You're registered for the recruiter training.")
+            } catch (e) { flash(e.message, true) }
+          }}
           onSelectAssist={() => setAppChoice('assist')}
           onSelectLeader={() => setAppChoice('leader')}
           onSelectQuiz={() => setAppChoice('quiz')}
@@ -592,6 +605,17 @@ export default function App() {
       <>
         {homeBar}
         <TuesdayClass data={tuesdayData} onJoin={logClassTap} onSwitchApp={switchApp} onSignOut={signOut} />
+        {toastEl}
+      </>
+    )
+  }
+
+  // ----------------------------------------------------- Recruiter training
+  if (appChoice === 'recruiter') {
+    return (
+      <>
+        {homeBar}
+        <Recruiter womanId={womanId} onError={(m) => flash(m, true)} onNotice={(m) => flash(m)} onSwitchApp={switchApp} onSignOut={signOut} />
         {toastEl}
       </>
     )
