@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CREED } from '../lib/constants'
 import LeaderReport from '../components/LeaderReport'
+import AssistantCard from '../components/AssistantCard'
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August',
   'September','October','November','December']
@@ -100,6 +101,7 @@ export default function MyTeam({ womanId, onError, onNotice, mentorName, data, b
 
       <div className="pad" style={{ paddingTop: 20 }}>
         <div className="stack" style={{ gap: 12 }}>
+          {womanId && <AssistantCard womanId={womanId} onError={onError} onNotice={onNotice} />}
           {womanId && <LeaderReport womanId={womanId} onError={onError} onNotice={onNotice} />}
           <TeamLink link={data.team_link} busy={busy} onSave={onSetTeamLink} />
           <SistersConnectSetup weekday={sisters_connect_weekday} busy={busy} onSet={onSetWeekday} />
