@@ -6,7 +6,7 @@ const FOUNDATION_ARC_ACTIVE = false
 
 // One-off restream of Tuesday's class on YouTube (Lagos date, YYYY-MM-DD).
 // The link itself only comes from the database, on this day, to women with access.
-const RESTREAM_DATE = '2026-10-30'
+const RESTREAM_DATE = '2026-11-07'
 import { money } from '../lib/format'
 
 // "ada" / "ADA" / "mary jane" -> "Ada" / "Mary Jane"
@@ -104,8 +104,8 @@ export default function Home({
         {isTuesday && onSelectTuesday && (
           <button type="button" className="home-live" onClick={onSelectTuesday}>
             <span>
-              <b>{isRestream && !isTuesdayRaw ? 'investment + new imara unveiling live tonight' : 'class is live tonight'}</b>
-              <small>{isRestream && !isTuesdayRaw ? "Tuesday's class restream · 8pm on YouTube" : (FOUNDATION_ARC_ACTIVE ? 'IMARA Circle · Foundation Arc' : 'IMARA Circle')}</small>
+              <b>{isRestream && !isTuesdayRaw ? 'the imara foundation replay tonight' : 'class is live tonight'}</b>
+              <small>{isRestream && !isTuesdayRaw ? 'Watch on YouTube · 7pm' : (FOUNDATION_ARC_ACTIVE ? 'IMARA Circle · Foundation Arc' : 'IMARA Circle')}</small>
             </span>
             <span className="home-go">{isRestream && !isTuesdayRaw ? 'Watch' : 'Join'}</span>
           </button>
@@ -202,7 +202,7 @@ export default function Home({
               onClick={isTuesday ? onSelectTuesday : undefined} disabled={!isTuesday}
             >
               <span className="home-ic">🎥</span>
-              <span><b>tuesday class</b><small>{isRestream && !isTuesdayRaw ? 'Live tonight at 8pm' : isTuesday ? "Join tonight's class" : 'Opens on Tuesdays'}</small></span>
+              <span><b>tuesday class</b><small>{isRestream && !isTuesdayRaw ? 'Replay tonight at 7pm' : isTuesday ? "Join tonight's class" : 'Opens on Tuesdays'}</small></span>
             </button>
           )}
           {onSelectQuiz && (

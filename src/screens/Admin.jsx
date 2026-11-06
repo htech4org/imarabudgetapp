@@ -569,6 +569,7 @@ function AttendanceTab({ password }) {
         <ClassTaps password={password} />
         <RecordingStatus password={password} />
       </div>
+      <ReplayTaps password={password} />
       <p className="tiny faint center" style={{ marginTop: 30 }}>
         © IMARA Wealth Trybe · Leading Ladies Foundation
       </p>
@@ -672,6 +673,52 @@ function ClassTaps({ password }) {
           </div>
           {shown.length === 0 && <p className="small muted" style={{ marginTop: 8 }}>No matches.</p>}
         </>
+      )}
+    </div>
+  )
+}
+
+// Taps on "Watch the replay" with the time. A tap shows she tried to watch, not that she stayed.
+function ReplayTaps({ password }) {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const load = async () => {
+    setError('')
+    try { setData(await rpc('imara_admin_replay_clicks', { p_admin_password: password, p_date: null })) }
+    catch (e) { setError(e.message) }
+  }
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = data?.rows || []
+  const cell = { padding: '9px 8px', borderTop: '1px solid var(--line)' }
+  return (
+    <div className="panel" style={{ marginTop: 16 }}>
+      <div className="row-between" style={{ alignItems: 'center' }}>
+        <span className="small" style={{ fontWeight: 700 }}>Replay taps{data?.date ? ` · ${data.date}` : ''} · {rows.length}</span>
+        <button className="btn btn-sm btn-soft" onClick={load}>Refresh</button>
+      </div>
+      <p className="tiny muted" style={{ margin: '6px 0 12px' }}>Time of her first tap on "Watch the replay". It shows she tried to watch, not that she stayed.</p>
+      {error && <div className="error-note">{error}</div>}
+      {!error && rows.length === 0 && <p className="small muted">No taps yet.</p>}
+      {rows.length > 0 && (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 380 }}>
+            <thead><tr style={{ textAlign: 'left' }}>
+              {['Woman', 'Mentor', 'First tap', 'Taps'].map((h) => (
+                <th key={h} className="tiny muted" style={{ padding: '0 8px 8px', textTransform: 'uppercase', letterSpacing: '.09em' }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.woman_id}>
+                  <td style={cell}><b>{r.first_name}</b></td>
+                  <td style={cell}>{r.mentor_name || '—'}</td>
+                  <td style={cell}>{r.first_tap_at}</td>
+                  <td style={cell}>{r.taps}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )
