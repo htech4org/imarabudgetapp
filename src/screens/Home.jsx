@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { CREED } from '../lib/constants'
 
 // Foundation Arc classes have ended. Set to true to show its Tuesday link again.
@@ -36,8 +37,10 @@ const lagosNow = () => {
  */
 export default function Home({
   firstName, isMentor, dayOfMonth, daysInMonth, monthName, money: m, reading, renewal,
-  onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading, leaderHome, onSelectLeader, assistantInfo, onSelectAssist,
+  onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading, leaderHome, onSelectLeader, assistantInfo, onSelectAssist, recruiter, onSelectRecruiter, onRegisterRecruiter,
 }) {
+  const [confirmRec, setConfirmRec] = useState(false)
+  const [recBusy, setRecBusy] = useState(false)
   const { hour, day, isTuesday: isTuesdayRaw, isRestream } = lagosNow()
   const isTuesday = isTuesdayRaw || isRestream
   // Quizzes show only while one is open (not past its deadline).
@@ -123,6 +126,49 @@ export default function Home({
           </button>
         )}
 
+        {/* ---------------- recruiter training: register ---------------- */}
+        {recruiter?.banner && onRegisterRecruiter && (
+          <div style={{ background: 'linear-gradient(135deg,#4C050B,#A11D44)', color: '#fff', borderRadius: 18, padding: 16 }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, lineHeight: 1.15 }}>Become an imara recruiter</div>
+            <p style={{ fontSize: 12, opacity: 0.85, marginTop: 6, lineHeight: 1.6 }}>
+              A 4-week training on Fridays 7pm. Qualify and earn up to ₦3,000/£3/$3 per recruit.
+              <br /><b>Register before Wed 11 Nov, 11:59pm WAT.</b>
+            </p>
+            <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+              {['Fri 13 Nov', 'Fri 20 Nov', 'Fri 27 Nov', 'Fri 4 Dec'].map((d) => (
+                <span key={d} style={{ background: 'rgba(255,255,255,.14)', borderRadius: 99, padding: '4px 10px', fontSize: 11 }}>{d}</span>
+              ))}
+            </div>
+            <button type="button" className="btn" onClick={() => setConfirmRec(true)}
+              style={{ marginTop: 12, background: 'var(--cream)', color: 'var(--maroon-900)', fontWeight: 700 }}>Register</button>
+          </div>
+        )}
+
+        {confirmRec && (
+          <div role="dialog" aria-modal="true"
+            style={{ position: 'fixed', inset: 0, background: 'rgba(42,20,16,.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 60 }}
+            onClick={() => !recBusy && setConfirmRec(false)}>
+            <div onClick={(e) => e.stopPropagation()}
+              style={{ background: '#fff', width: '100%', maxWidth: 480, borderRadius: '18px 18px 0 0', padding: 20 }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 20 }}>register as a recruiter?</div>
+              <p className="tiny muted" style={{ marginTop: 8, lineHeight: 1.7 }}>
+                You will join the 4-week IMARA recruiter training:<br />
+                <b>Fridays at 7pm WAT</b><br />13 Nov · 20 Nov · 27 Nov · 4 Dec
+              </p>
+              <p className="tiny muted" style={{ marginTop: 8, lineHeight: 1.7 }}>
+                Your name and phone number go to the IMARA team so we can send you the class link.
+              </p>
+              <div className="row" style={{ gap: 8, marginTop: 14 }}>
+                <button className="btn btn-primary" disabled={recBusy}
+                  onClick={async () => { setRecBusy(true); try { await onRegisterRecruiter() } finally { setRecBusy(false); setConfirmRec(false) } }}>
+                  {recBusy ? 'Registering…' : 'Yes, register me'}
+                </button>
+                <button className="btn btn-soft" disabled={recBusy} onClick={() => setConfirmRec(false)}>Not now</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {onSelectQuiz && quizToDo && (
           <button type="button" className="home-renew" onClick={onSelectQuiz} style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}>
             <span>
@@ -166,6 +212,12 @@ export default function Home({
             >
               <span className="home-ic">✅</span>
               <span><b>class quizzes</b><small>{openQuizzes.length > 0 ? 'Did you catch it all?' : 'Opens when a quiz is live'}</small></span>
+            </button>
+          )}
+          {recruiter?.tile && onSelectRecruiter && (
+            <button type="button" className="home-tile" onClick={onSelectRecruiter}>
+              <span className="home-ic">🎓</span>
+              <span><b>recruiter training</b><small>Fridays 7pm · starts 13 Nov</small></span>
             </button>
           )}
           {assistantInfo?.is_assistant && onSelectAssist && (

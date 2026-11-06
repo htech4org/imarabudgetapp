@@ -121,7 +121,7 @@ function Console({ data, password, onRefresh, busy, onLock }) {
         </div>
         <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: 6 }}>
           <div className="adm-tabs">
-            {[['budget', 'Budget'], ['reading', 'Book Reading'], ['mentors', 'Mentors'], ['attendance', 'Attendance'], ['quizzes', 'Quizzes'], ['access', 'Access']].map(([k, label]) => (
+            {[['budget', 'Budget'], ['reading', 'Book Reading'], ['mentors', 'Mentors'], ['attendance', 'Attendance'], ['quizzes', 'Quizzes'], ['recruiters', 'Recruiters'], ['access', 'Access']].map(([k, label]) => (
               <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>
             ))}
           </div>
@@ -136,6 +136,8 @@ function Console({ data, password, onRefresh, busy, onLock }) {
         <AttendanceTab password={password} />
       ) : tab === 'quizzes' ? (
         <QuizTab password={password} />
+      ) : tab === 'recruiters' ? (
+        <RecruitersTab password={password} />
       ) : tab === 'access' ? (
         <AccessTab password={password} />
       ) : (
@@ -534,13 +536,13 @@ function RecordingStatus({ password }) {
                     </div>
                   </button>
                   {r.no_sisters_day && (
-                    <p className="tiny muted" style={{ marginTop: 4 }}>She has not picked her Sisters Connect day yet.</p>
+                    <p className="tiny muted" style={{ marginTop: 4 }}>She has not picked her Mastermind day yet.</p>
                   )}
                   {open === r.mentor_id && (r.missing || []).length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       {r.missing.map((m, i) => (
                         <p key={i} className="tiny" style={{ lineHeight: 1.8 }}>
-                          {m.kind} · {String(m.session_date).slice(5)}: {m.recorded} of {m.team} recorded
+                          {m.kind === 'Sisters Connect' ? 'Mastermind meeting' : m.kind} · {String(m.session_date).slice(5)}: {m.recorded} of {m.team} recorded
                         </p>
                       ))}
                     </div>
@@ -1260,6 +1262,149 @@ function Drilldown({ s, onClose }) {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+
+// ---------------------------------------------------------------------------
+// Recruiters: who registered for the Friday training, and the class link
+// ---------------------------------------------------------------------------
+function RecruitersTab({ password }) {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [note, setNote] = useState('')
+  const [link, setLink] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [att, setAtt] = useState(null)       // attendance from Join taps, per class date
+  const [openDate, setOpenDate] = useState(null)
+
+  useEffect(() => {
+    rpc('imara_admin_recruiter_attendance', { p_admin_password: password })
+      .then((d) => { setAtt(d.classes); if (d.classes.length) setOpenDate(d.classes[d.classes.length - 1].class_date) })
+      .catch(() => {})
+  }, [password])
+
+  const load = () =>
+    rpc('imara_admin_recruiters', { p_admin_password: password })
+      .then((d) => { setData(d); setLink(d.link || '') })
+      .catch((e) => setError(e.message))
+
+  useEffect(() => { load() }, [password])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveLink = async () => {
+    setSaving(true); setError(''); setNote('')
+    try {
+      await rpc('imara_admin_recruiter_set_link', { p_admin_password: password, p_link: link })
+      setNote(link.trim() ? 'Class link saved. Registered women see it on class days from 6:30pm.' : 'Class link cleared.')
+      await load()
+    } catch (e) { setError(e.message) } finally { setSaving(false) }
+  }
+
+  const copyPhones = async () => {
+    const text = (data?.people || []).map((p) => p.phone).filter(Boolean).join('\n')
+    try { await navigator.clipboard.writeText(text); setNote(`Copied ${(data?.people || []).length} phone numbers.`) }
+    catch { setNote(text) }
+  }
+
+  const download = () => {
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const rows = [['Name', 'Phone', 'Email', 'Mentor', 'Role', 'Registered', 'Access']].concat(
+      (data?.people || []).map((p) => [
+        p.first_name, p.phone, p.email, p.mentor_name || '', p.is_mentor ? 'Mentor' : 'Mentee',
+        String(p.registered_at).slice(0, 10), p.access_status,
+      ]),
+    )
+    const blob = new Blob([rows.map((r) => r.map(esc).join(',')).join('\n')], { type: 'text/csv' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob); a.download = 'imara-recruiters.csv'; a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  if (!data && error) return <div className="admin"><div className="error-note">{error}</div></div>
+  if (!data) return <div className="admin"><p className="small muted">Loading recruiters…</p></div>
+
+  return (
+    <div className="admin">
+      {error && <div className="error-note" style={{ marginBottom: 12 }}>{error}</div>}
+      {note && <p className="small" style={{ marginBottom: 12, color: 'var(--green)' }}>{note}</p>}
+
+      <div className="row" style={{ gap: 8, marginBottom: 14 }}>
+        {[[data.registered, 'registered'], [data.mentors, 'mentors'], [data.mentees, 'mentees']].map(([n, k]) => (
+          <div key={k} className="card" style={{ flex: 1, padding: 12, textAlign: 'center' }}>
+            <b style={{ fontFamily: 'var(--font-display)', fontSize: 22, display: 'block' }}>{n}</b>
+            <span className="tiny muted">{k}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="card" style={{ padding: 14, marginBottom: 14 }}>
+        <div className="small" style={{ fontWeight: 700 }}>Class link</div>
+        <p className="tiny muted" style={{ margin: '4px 0 8px' }}>
+          Registered women see it on each class day from 6:30pm. Fridays 7pm WAT: 13 Nov, 20 Nov, 27 Nov, 4 Dec.
+        </p>
+        <input className="input" placeholder="https://…" value={link} onChange={(e) => setLink(e.target.value)} style={{ width: '100%' }} />
+        <div className="row" style={{ gap: 8, marginTop: 8 }}>
+          <button className="btn btn-sm btn-primary" disabled={saving} onClick={saveLink}>{saving ? 'Saving…' : 'Save link'}</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 14, marginBottom: 14 }}>
+        <div className="small" style={{ fontWeight: 700 }}>Class attendance</div>
+        <p className="tiny muted" style={{ margin: '4px 0 10px' }}>
+          From the time each woman tapped "Join today's class". It shows when she joined, not that she stayed.
+        </p>
+        {!att || att.length === 0 ? (
+          <p className="tiny muted">The first class is on Fri 13 Nov. Attendance appears here once it starts.</p>
+        ) : (
+          <>
+            <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              {att.map((c) => (
+                <button key={c.class_date} className={`btn btn-sm ${openDate === c.class_date ? 'btn-primary' : 'btn-soft'}`}
+                  onClick={() => setOpenDate(c.class_date)}>
+                  {new Date(`${c.class_date}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · {c.joined.length}/{c.registered}
+                </button>
+              ))}
+            </div>
+            {att.filter((c) => c.class_date === openDate).map((c) => (
+              <div key={c.class_date} style={{ marginTop: 12 }}>
+                <div className="tiny" style={{ fontWeight: 700 }}>Joined ({c.joined.length})</div>
+                {c.joined.length === 0 && <p className="tiny muted">No one tapped Join.</p>}
+                {c.joined.map((j) => (
+                  <p key={j.woman_id} className="tiny" style={{ marginTop: 4 }}>
+                    {j.first_name} · {new Date(j.first_click).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Africa/Lagos' })}
+                    {j.taps > 1 ? ` · ${j.taps} taps` : ''}
+                  </p>
+                ))}
+                <div className="tiny" style={{ fontWeight: 700, marginTop: 10 }}>Did not join ({c.not_joined.length})</div>
+                {c.not_joined.map((n) => <p key={n.woman_id} className="tiny muted" style={{ marginTop: 4 }}>{n.first_name} · {n.phone}</p>)}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      <div className="row" style={{ gap: 8, marginBottom: 12 }}>
+        <button className="btn btn-sm btn-soft" onClick={copyPhones} disabled={data.people.length === 0}>Copy phone numbers</button>
+        <button className="btn btn-sm btn-soft" onClick={download} disabled={data.people.length === 0}>Download list</button>
+      </div>
+
+      {data.people.length === 0 && <p className="small muted">No one has registered yet.</p>}
+      <div className="stack" style={{ gap: 8 }}>
+        {data.people.map((p) => (
+          <div key={p.woman_id} className="card" style={{ padding: 12 }}>
+            <div className="row-between" style={{ gap: 8 }}>
+              <span className="small" style={{ fontWeight: 600 }}>{p.first_name}{p.is_mentor ? ' · mentor' : ''}</span>
+              <span className="tag" style={p.access_status === 'active' ? undefined : { background: '#FFF1D6', color: '#B2730A' }}>
+                {p.access_status === 'active' ? 'paid' : 'access ended'}
+              </span>
+            </div>
+            <p className="tiny muted" style={{ marginTop: 4 }}>
+              {p.mentor_name ? `Mentor: ${p.mentor_name} · ` : ''}{p.phone} · registered {new Date(p.registered_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+            </p>
+          </div>
+        ))}
       </div>
     </div>
   )
