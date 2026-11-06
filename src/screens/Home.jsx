@@ -36,7 +36,7 @@ const lagosNow = () => {
  */
 export default function Home({
   firstName, isMentor, dayOfMonth, daysInMonth, monthName, money: m, reading, renewal,
-  onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading, leaderHome, onSelectLeader,
+  onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading, leaderHome, onSelectLeader, assistantInfo, onSelectAssist,
 }) {
   const { hour, day, isTuesday: isTuesdayRaw, isRestream } = lagosNow()
   const isTuesday = isTuesdayRaw || isRestream
@@ -166,6 +166,12 @@ export default function Home({
             >
               <span className="home-ic">✅</span>
               <span><b>class quizzes</b><small>{openQuizzes.length > 0 ? 'Did you catch it all?' : 'Opens when a quiz is live'}</small></span>
+            </button>
+          )}
+          {assistantInfo?.is_assistant && onSelectAssist && (
+            <button type="button" className="home-tile wide" onClick={onSelectAssist}>
+              <span className="home-ic">✅</span>
+              <span><b>help {assistantInfo.mentor_name?.toLowerCase()} with attendance</b><small>Tick who came</small></span>
             </button>
           )}
           {leaderHome?.is_leader && onSelectLeader && (

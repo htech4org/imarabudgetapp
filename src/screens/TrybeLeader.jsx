@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { rpc } from '../lib/supabase'
 import { CREED } from '../lib/constants'
 import { numbersLine } from '../components/LeaderReport'
+import AssistantCard from '../components/AssistantCard'
 
 // The Trybe Leader's view of every mentor: her team's numbers, her own
 // tracking, whether Mastermind meetings are recorded, and whether weekly and
@@ -81,9 +82,10 @@ export default function TrybeLeader({ womanId, onError, onSwitchApp, onSignOut }
           <button className={`btn btn-sm ${tab === 'attendance' ? 'btn-primary' : 'btn-soft'}`} onClick={() => setTab('attendance')}>Attendance</button>
         </div>
 
-        {tab === 'attendance' ? (
+        {tab === 'attendance' ? (<>
+          <div style={{ marginBottom: 16 }}><AssistantCard womanId={womanId} onError={onError} /></div>
           <Attendance womanId={womanId} onError={onError} onChanged={() => rpc('imara_leader_overview', { p_leader_id: womanId }).then(setData).catch(() => {})} />
-        ) : (<>
+        </>) : (<>
         <div className="card" style={{ padding: 14, marginBottom: 12 }}>
           <div className="small" style={{ fontWeight: 700 }}>This week's reports: {weekIn} of {rows.length} in</div>
           <p className="tiny muted" style={{ marginTop: 4 }}>
