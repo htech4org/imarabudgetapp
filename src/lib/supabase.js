@@ -48,6 +48,8 @@ const MESSAGES = {
   not_a_mentor:        "That account is not flagged as a mentor.",
   not_your_team:       "That woman is not on your team.",
   cannot_self_mentor:  "A mentor can't be assigned as her own mentor.",
+  not_an_assistant:    "You are not set up as an assistant.",
+  self_not_allowed:    "You can tick yourself only at the Circle, on a day the class log picked you up.",
   future_session:      "That date has not happened yet.",
   not_leader:          "Only the Trybe Leader can open this.",
   empty_report:        "Write at least one line before sending.",
