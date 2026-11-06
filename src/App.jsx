@@ -490,7 +490,9 @@ export default function App() {
   // Fire-and-forget: record that she tapped a class link. Never blocks the join.
   const logClassTap = (classKey) => {
     if (!womanId) return
-    rpc('imara_tuesday_log_click', { p_woman_id: womanId, p_class: classKey }).catch(() => {})
+    const fn = classKey === 'replay' ? 'imara_replay_log_click' : 'imara_tuesday_log_click'
+    const args = classKey === 'replay' ? { p_woman_id: womanId } : { p_woman_id: womanId, p_class: classKey }
+    rpc(fn, args).catch(() => {})
   }
 
   const homeBar = <HomeBar onHome={switchApp} />
