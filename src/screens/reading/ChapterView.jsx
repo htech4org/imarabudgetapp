@@ -10,7 +10,7 @@ import { useState } from 'react'
 //   'result' — score + pass/fail, with Continue or Try again
 export default function ChapterView({
   bookTitle, chapterNumber, totalChapters, chapter, busy,
-  onSubmitTest, onNext, onBack,
+  onSubmitTest, onNext, onBack, furthest, onGoTo,
 }) {
   const hasContent = Boolean(chapter.content && chapter.content.trim())
   const [stage, setStage] = useState(hasContent ? 'read' : 'test')
@@ -41,6 +41,12 @@ export default function ChapterView({
 
   const isLastChapter = chapterNumber >= totalChapters
 
+  // A chapter she has already passed opens for re-reading only. No second test,
+  // so her reading counts are not inflated by looking back.
+  const unlocked = Math.min(Math.max(furthest || chapterNumber, chapterNumber), totalChapters)
+  const isReview = Boolean(furthest) && chapterNumber < furthest
+  const goTo = (n) => { if (onGoTo) onGoTo(n) }
+
   return (
     <div className="shell fade-in">
       <div className="topbar">
@@ -52,7 +58,46 @@ export default function ChapterView({
       </div>
 
       <div className="pad" style={{ paddingTop: 24 }}>
-        {stage === 'read' && (
+        {unlocked > 1 && onGoTo && (
+          <div style={{ marginBottom: 16 }}>
+            <p className="tiny muted" style={{ marginBottom: 8 }}>Jump to a chapter</p>
+            <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              {Array.from({ length: unlocked }, (_, i) => i + 1).map((n) => (
+                <button
+                  key={n} type="button" disabled={busy}
+                  className={`btn btn-sm ${n === chapterNumber ? 'btn-primary' : 'btn-soft'}`}
+                  style={{ minWidth: 38 }}
+                  onClick={() => n !== chapterNumber && goTo(n)}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {isReview && (
+          <>
+            <div className="card">
+              {hasContent
+                ? <p className="small" style={{ lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{chapter.content}</p>
+                : <p className="small muted">There is no reading text for this chapter.</p>}
+            </div>
+            <p className="tiny muted" style={{ margin: '14px 0 10px' }}>You passed this chapter. This is just for re-reading.</p>
+            <div className="row" style={{ gap: 8 }}>
+              {chapterNumber > 1 && (
+                <button className="btn btn-soft" disabled={busy} onClick={() => goTo(chapterNumber - 1)}>← Previous chapter</button>
+              )}
+              {chapterNumber + 1 <= unlocked ? (
+                <button className="btn btn-primary" disabled={busy} onClick={() => goTo(chapterNumber + 1)}>Next chapter →</button>
+              ) : (
+                <button className="btn btn-primary" disabled={busy} onClick={onBack}>Back to my books</button>
+              )}
+            </div>
+          </>
+        )}
+
+        {!isReview && stage === 'read' && (
           <>
             <div className="card">
               <p className="small" style={{ lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{chapter.content}</p>
@@ -63,7 +108,7 @@ export default function ChapterView({
           </>
         )}
 
-        {stage === 'test' && (
+        {!isReview && stage === 'test' && (
           <div className="stack" style={{ gap: 20 }}>
             {questions.map((q, i) => (
               <div className="card" key={q.question_id}>
@@ -94,7 +139,7 @@ export default function ChapterView({
           </div>
         )}
 
-        {stage === 'result' && result && (
+        {!isReview && stage === 'result' && result && (
           <div className="stack" style={{ gap: 16 }}>
             <div className={`total-badge ${result.passed ? 'ok' : 'off'}`}>
               <span>{result.passed ? 'You passed this chapter' : 'Not quite yet'}</span>
