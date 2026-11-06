@@ -640,6 +640,8 @@ export default function App() {
             onSubmitTest={(answers) => submitTest(readingChapter.data.chapter_id, answers)}
             onNext={nextChapter}
             onBack={backToReadingList}
+            furthest={readingProgress.find((x) => x.book_id === readingChapter.bookId)?.current_chapter || readingChapter.chapterNumber}
+            onGoTo={(n) => openChapter(readingChapter.bookId, readingChapter.bookTitle, readingChapter.totalChapters, n)}
           />
           {toastEl}
         </>
