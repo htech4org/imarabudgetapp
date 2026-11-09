@@ -3,6 +3,7 @@ import { rpc } from '../lib/supabase'
 import { CREED } from '../lib/constants'
 import { numbersLine } from '../components/LeaderReport'
 import AssistantCard from '../components/AssistantCard'
+import JourneyTeam from '../components/JourneyTeam'
 
 // The Trybe Leader's view of every mentor: her team's numbers, her own
 // tracking, whether Mastermind meetings are recorded, and whether weekly and
@@ -86,6 +87,7 @@ export default function TrybeLeader({ womanId, onError, onSwitchApp, onSignOut }
           <div style={{ marginBottom: 16 }}><AssistantCard womanId={womanId} onError={onError} /></div>
           <Attendance womanId={womanId} onError={onError} onChanged={() => rpc('imara_leader_overview', { p_leader_id: womanId }).then(setData).catch(() => {})} />
         </>) : (<>
+        <JourneyTeam womanId={womanId} mode="leader" />
         <div className="card" style={{ padding: 14, marginBottom: 12 }}>
           <div className="small" style={{ fontWeight: 700 }}>This week's reports: {weekIn} of {rows.length} in</div>
           <p className="tiny muted" style={{ marginTop: 4 }}>

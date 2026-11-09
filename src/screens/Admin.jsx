@@ -9,6 +9,7 @@ import Leaderboard from '../components/Leaderboard'
 import ReadingLeaderboard from '../components/ReadingLeaderboard'
 import MentorsConsole from './MentorsConsole'
 import AccessConsole from './AccessConsole'
+import { A as MIRROR } from '../lib/mirror'
 
 const KEY = 'imara_admin_pw'
 
@@ -121,7 +122,7 @@ function Console({ data, password, onRefresh, busy, onLock }) {
         </div>
         <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: 6 }}>
           <div className="adm-tabs">
-            {[['budget', 'Budget'], ['reading', 'Book Reading'], ['mentors', 'Mentors'], ['attendance', 'Attendance'], ['quizzes', 'Quizzes'], ['recruiters', 'Recruiters'], ['access', 'Access']].map(([k, label]) => (
+            {[['budget', 'Budget'], ['reading', 'Book Reading'], ['mentors', 'Mentors'], ['attendance', 'Attendance'], ['quizzes', 'Quizzes'], ['recruiters', 'Recruiters'], ['mirror', 'Mirror'], ['journey', 'Journey'], ['access', 'Access']].map(([k, label]) => (
               <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>
             ))}
           </div>
@@ -138,6 +139,10 @@ function Console({ data, password, onRefresh, busy, onLock }) {
         <QuizTab password={password} />
       ) : tab === 'recruiters' ? (
         <RecruitersTab password={password} />
+      ) : tab === 'mirror' ? (
+        <MirrorTab password={password} />
+      ) : tab === 'journey' ? (
+        <JourneyAdminTab password={password} />
       ) : tab === 'access' ? (
         <AccessTab password={password} />
       ) : (
@@ -1452,6 +1457,146 @@ function RecruitersTab({ password }) {
             </p>
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Mirror tab: everyone's Financial Mirror result, and the 1 Dec follow-up list
+// ---------------------------------------------------------------------------
+function MirrorTab({ password }) {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [filter, setFilter] = useState('all')
+  const load = async () => {
+    setError('')
+    try { setData(await rpc('imara_admin_mirror_results', { p_admin_password: password })) }
+    catch (e) { setError(e.message) }
+  }
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const label = (k) => (MIRROR[k] ? `${MIRROR[k].name} · ${MIRROR[k].type}` : k)
+  const tier = (t) => (t === 'paid' ? 'Paid' : t === 'past' ? 'Past member' : 'Free')
+  const rows = (data?.rows || []).filter((r) => filter === 'all' || (filter === 'followup' ? r.tier !== 'paid' : r.tier === filter))
+  const counts = data?.counts || []
+  const max = Math.max(1, ...counts.map((c) => Number(c.n)))
+  const cell = { padding: '9px 8px', borderTop: '1px solid var(--line)' }
+
+  const download = () => {
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const head = ['Name', 'Phone', 'Email', 'Mentor', 'Result', 'Also', 'Tier', 'Date']
+    const body = rows.map((r) => [r.first_name, r.phone, r.email, r.mentor_name, label(r.k), r.a ? label(r.a) : '', tier(r.tier), String(r.taken_at || '').slice(0, 10)])
+    const blob = new Blob([[head, ...body].map((r) => r.map(esc).join(',')).join('\n')], { type: 'text/csv' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob); a.download = 'imara-mirror-results.csv'; a.click()
+  }
+
+  return (
+    <div className="admin">
+      <div className="panel">
+        <div className="row-between" style={{ alignItems: 'center' }}>
+          <span className="small" style={{ fontWeight: 700 }}>Financial Mirror · {data?.total ?? 0} results</span>
+          <button className="btn btn-sm btn-soft" onClick={load}>Refresh</button>
+        </div>
+        {error && <div className="error-note">{error}</div>}
+        <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+          {counts.map((c) => (
+            <div key={c.k}>
+              <div className="row-between small"><span>{label(c.k)}</span><b>{c.n}</b></div>
+              <div style={{ height: 8, borderRadius: 6, background: 'var(--line)', overflow: 'hidden', marginTop: 3 }}>
+                <div style={{ width: `${(Number(c.n) / max) * 100}%`, height: '100%', background: 'var(--maroon-900)' }} />
+              </div>
+            </div>
+          ))}
+          {!error && counts.length === 0 && <p className="small muted">No results yet.</p>}
+        </div>
+      </div>
+
+      <div className="panel" style={{ marginTop: 16 }}>
+        <div className="row-between" style={{ alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            {[['all', 'All'], ['followup', 'Not paid (1 Dec follow-up)'], ['free', 'Free'], ['past', 'Past'], ['paid', 'Paid']].map(([k, l]) => (
+              <button key={k} className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-soft'}`} onClick={() => setFilter(k)}>{l}</button>
+            ))}
+          </div>
+          <button className="btn btn-sm btn-soft" onClick={download} disabled={rows.length === 0}>Download CSV</button>
+        </div>
+        <p className="tiny muted" style={{ margin: '8px 0 12px' }}>Women who took the Mirror but have not paid are your follow-up list when payments open on 1 December.</p>
+        {rows.length > 0 && (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 520 }}>
+              <thead><tr style={{ textAlign: 'left' }}>
+                {['Woman', 'Phone', 'Result', 'Tier', 'Date'].map((h) => (
+                  <th key={h} className="tiny muted" style={{ padding: '0 8px 8px', textTransform: 'uppercase', letterSpacing: '.09em' }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.woman_id}>
+                    <td style={cell}><b>{r.first_name}</b></td>
+                    <td style={cell}>{r.phone || '—'}</td>
+                    <td style={cell}>{label(r.k)}{r.a ? ` (+ ${MIRROR[r.a]?.name || r.a})` : ''}</td>
+                    <td style={cell}>{tier(r.tier)}</td>
+                    <td style={cell}>{String(r.taken_at || '').slice(0, 10)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Journey tab: every paid woman's weekly score
+// ---------------------------------------------------------------------------
+function JourneyAdminTab({ password }) {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const load = async () => {
+    setError('')
+    try { setData(await rpc('imara_admin_journey', { p_admin_password: password })) }
+    catch (e) { setError(e.message) }
+  }
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = data?.rows || []
+  const cell = { padding: '9px 8px', borderTop: '1px solid var(--line)' }
+  const col = (n) => (n == null ? 'inherit' : n >= 70 ? 'var(--green)' : n >= 40 ? 'var(--clay)' : 'var(--wine)')
+  return (
+    <div className="admin">
+      <div className="panel">
+        <div className="row-between" style={{ alignItems: 'center' }}>
+          <span className="small" style={{ fontWeight: 700 }}>IMARA Journey{data?.week ? ` · week ${data.week}` : ''} · {rows.length} women</span>
+          <button className="btn btn-sm btn-soft" onClick={load}>Refresh</button>
+        </div>
+        <p className="tiny muted" style={{ margin: '6px 0 12px' }}>Lowest scores first. Reading, class, quiz, mastermind and investment count 20 points each.</p>
+        {error && <div className="error-note">{error}</div>}
+        {!error && rows.length === 0 && <p className="small muted">Nothing to show yet.</p>}
+        {rows.length > 0 && (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 520 }}>
+              <thead><tr style={{ textAlign: 'left' }}>
+                {['Woman', 'Mentor', 'This week', 'Average', 'Missing'].map((h) => (
+                  <th key={h} className="tiny muted" style={{ padding: '0 8px 8px', textTransform: 'uppercase', letterSpacing: '.09em' }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.woman_id}>
+                    <td style={cell}><b>{r.first_name}</b></td>
+                    <td style={cell}>{r.mentor_name || '—'}</td>
+                    <td style={{ ...cell, color: col(r.sm?.score), fontWeight: 700 }}>{r.sm?.score == null ? '—' : `${r.sm.score}%`}</td>
+                    <td style={cell}>{r.sm?.average == null ? '—' : `${r.sm.average}%`}</td>
+                    <td style={cell}>{(r.sm?.flags || []).join(', ') || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )
