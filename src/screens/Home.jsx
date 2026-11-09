@@ -8,6 +8,8 @@ const FOUNDATION_ARC_ACTIVE = false
 // The link itself only comes from the database, on this day, to women with access.
 const RESTREAM_DATE = '2026-11-07'
 import { money } from '../lib/format'
+import { WeekBars, scoreColor } from '../components/WeekBars'
+import { A as MIRROR } from '../lib/mirror'
 
 // "ada" / "ADA" / "mary jane" -> "Ada" / "Mary Jane"
 export const properName = (s) =>
@@ -38,6 +40,7 @@ const lagosNow = () => {
 export default function Home({
   firstName, isMentor, dayOfMonth, daysInMonth, monthName, money: m, reading, renewal,
   onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading, leaderHome, onSelectLeader, assistantInfo, onSelectAssist, recruiter, onSelectRecruiter, onRegisterRecruiter,
+  journey, onSelectJourney, mirror, onSelectMirror,
 }) {
   const [confirmRec, setConfirmRec] = useState(false)
   const [recBusy, setRecBusy] = useState(false)
@@ -69,6 +72,26 @@ export default function Home({
       <div className="home-body">
         {/* ---------------- renewal reminder ---------------- */}
         {renewal && <RenewalNote renewal={renewal} />}
+
+        {/* ---------------- IMARA Journey: weekly score ---------------- */}
+        {journey?.visible && journey.current_week >= 1 && onSelectJourney && (() => {
+          const cw = journey.weeks.find((x) => x.week === journey.current_week)
+          const sc = cw?.score
+          return (
+            <div className="home-card">
+              <div className="home-read-top">
+                <div>
+                  <div className="home-lbl">IMARA Journey · week {journey.current_week} of {journey.total_weeks}</div>
+                  <div className="home-book">This week: {sc != null ? `${sc}%` : '—'}</div>
+                  <div className="home-sub">{journey.average != null ? `Average so far ${journey.average}%` : ''}</div>
+                </div>
+                <div className="home-ring" style={{ '--p': sc || 0, background: `conic-gradient(${scoreColor(sc)} calc(var(--p)*1%),var(--surface-2) 0)` }}><span>{sc != null ? sc : '–'}</span></div>
+              </div>
+              <WeekBars weeks={journey.weeks} selected={journey.current_week} />
+              <button type="button" className="home-btn soft" onClick={onSelectJourney}>See my week</button>
+            </div>
+          )
+        })()}
 
         {/* ---------------- saved + invested ---------------- */}
         <div className="home-card">
@@ -220,6 +243,12 @@ export default function Home({
               <span><b>recruiter training</b><small>Fridays 7pm · starts 13 Nov</small></span>
             </button>
           )}
+          {onSelectMirror && (
+            <button type="button" className="home-tile" onClick={onSelectMirror}>
+              <span className="home-ic">🪞</span>
+              <span><b>financial mirror</b><small>{mirror && MIRROR[mirror.k] ? `Your result: ${MIRROR[mirror.k].name}` : 'Takes 5 minutes'}</small></span>
+            </button>
+          )}
           {assistantInfo?.is_assistant && onSelectAssist && (
             <button type="button" className="home-tile wide" onClick={onSelectAssist}>
               <span className="home-ic">✅</span>
@@ -355,7 +384,7 @@ function ReadingCard({ reading, onContinue, onOpen }) {
   )
 }
 
-const CSS = `
+export const CSS = `
 .home{--hg:#59BA8E;--hgold:#DD8E0D}
 .home-hero{background:var(--maroon-900);color:#fff;padding:24px 20px 72px}
 .home-eyebrow{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--peach);margin-top:2px}
