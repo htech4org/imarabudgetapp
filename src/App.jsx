@@ -13,7 +13,9 @@ import Admin from './screens/Admin'
 import ReadingHome from './screens/reading/ReadingHome'
 import ChapterView from './screens/reading/ChapterView'
 import MyTeam from './screens/MyTeam'
-import Locked from './screens/Locked'
+import FreeHome from './screens/FreeHome'
+import Mirror from './screens/Mirror'
+import Journey from './screens/Journey'
 import Toolkit from './screens/Toolkit'
 import TuesdayClass from './screens/TuesdayClass'
 import Quiz from './screens/Quiz'
@@ -63,6 +65,8 @@ export default function App() {
   const [assistantInfo, setAssistantInfo] = useState(null)  // imara_assistant_info: whom she helps with attendance
   const [leaderHome, setLeaderHome] = useState(null)  // imara_leader_home: Trybe Leader flag and report reminders
   const [homeQuizzes, setHomeQuizzes] = useState(null)  // imara_quiz_list, for the Home banner
+  const [freeInfo, setFreeInfo] = useState(null)  // imara_free_info: free month, payment window, mirror result
+  const [journey, setJourney] = useState(null)  // imara_journey_score, for the Home card
 
   // Resume her session from this device.
   useEffect(() => {
@@ -167,8 +171,22 @@ export default function App() {
     p_email: form.email, p_password: form.password, p_currency: form.currency,
   })
 
-  const login = ({ identifier, password }) =>
-    run('imara_login', { p_identifier: identifier, p_password: password })
+  // A wrong password comes back as a normal result (login_failed) so the
+  // database can count the try; we turn it into a message here.
+  const login = async ({ identifier, password }) => {
+    setBusy(true)
+    try {
+      const res = await rpc('imara_login', { p_identifier: identifier, p_password: password })
+      if (res?.login_failed) {
+        if (res.locked) {
+          throw new Error('Too many wrong tries, so this login is locked. Please contact IMARA admin to reset your password.')
+        }
+        const n = res.attempts_left
+        throw new Error(`That password doesn't match.${n != null ? ` You have ${n} ${n === 1 ? 'try' : 'tries'} left.` : ''}`)
+      }
+      return adopt(res)
+    } finally { setBusy(false) }
+  }
 
   const claim = ({ identifier, password }) =>
     run('imara_claim_account', { p_identifier: identifier, p_password: password })
@@ -185,7 +203,12 @@ export default function App() {
     p_living:    split.living,
   })
 
+  // Outside her free month a non-paying woman can only look.
+  const canEdit = state?.woman?.budget_editable !== false
+  const readOnlyNote = () => flash('Your free month has ended, so your budget is read-only now. Join IMARA to keep tracking.', true)
+
   const addEntry = async (payload) => {
+    if (!canEdit) { readOnlyNote(); return }
     try {
       await run('imara_add_entry', {
         p_woman_id: state.woman.id,
@@ -201,17 +224,20 @@ export default function App() {
   }
 
   const deleteEntry = async (id) => {
+    if (!canEdit) { readOnlyNote(); return }
     if (!window.confirm('Remove this entry from your map?')) return
     try { await run('imara_delete_entry', { p_woman_id: state.woman.id, p_entry_id: id }) }
     catch (e) { flash(e.message, true) }
   }
 
   const closePeriod = async (realisation) => {
+    if (!canEdit) { readOnlyNote(); return }
     await run('imara_close_period', { p_woman_id: state.woman.id, p_realisation: realisation })
     flash('Your month is closed. Well done.')
   }
 
   const newPeriod = async () => {
+    if (!canEdit) { readOnlyNote(); return }
     try {
       await run('imara_new_period', { p_woman_id: state.woman.id })
       setView('dashboard')
@@ -225,7 +251,7 @@ export default function App() {
     localStorage.removeItem(APP_STORE)
     setState(null); setView('dashboard'); setAppChoiceState(null)
     setReadingBooks([]); setReadingProgress([]); setReadingBoard([]); setReadingView('list'); setReadingChapter(null)
-    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null); setHomeReading(null); setHomeRenewal(null); setHomeQuizzes(null); setLeaderHome(null); setAssistantInfo(null); setRecruiterState(null)
+    setTeamData(null); setToolkitData(null); setTuesdayData(null); setRenewalInfo(null); setHomeReading(null); setHomeRenewal(null); setHomeQuizzes(null); setLeaderHome(null); setAssistantInfo(null); setRecruiterState(null); setFreeInfo(null); setJourney(null)
   }
 
   const switchApp = () => {
@@ -369,6 +395,47 @@ export default function App() {
     else setRenewalInfo(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locked, womanId])
+
+  // Free-tier facts (free month, payment window, Mirror result). Refreshed
+  // whenever she comes back to Home or opens the Mirror or the tracker.
+  const loadFreeInfo = useCallback(async () => {
+    if (!womanId) return null
+    try { const d = await rpc('imara_free_info', { p_woman_id: womanId }); setFreeInfo(d); return d }
+    catch { return null }
+  }, [womanId])
+  useEffect(() => {
+    if (!womanId) return
+    if (!appChoice || appChoice === 'mirror' || appChoice === 'budget') loadFreeInfo()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [womanId, appChoice, locked])
+
+  // Weekly IMARA Journey score for paid women, on Home.
+  useEffect(() => {
+    if (appChoice || !womanId || locked) return
+    let cancelled = false
+    rpc('imara_journey_score', { p_woman_id: womanId })
+      .then((d) => { if (!cancelled) setJourney(d) })
+      .catch(() => { if (!cancelled) setJourney(null) })
+    return () => { cancelled = true }
+  }, [appChoice, womanId, locked])
+
+  const saveMirror = async (key, also) => {
+    const d = await rpc('imara_mirror_save', { p_woman_id: womanId, p_key: key, p_also: also || null })
+    if (d?.free_state) setFreeInfo(d)
+  }
+
+  const startFreeBudget = async () => {
+    const info = freeInfo
+    if (info?.free_state === 'not_started') {
+      if (!window.confirm('Your free month starts today and runs for 30 days. Start it now?')) return
+      try {
+        await rpc('imara_free_budget_start', { p_woman_id: womanId })
+        await run('imara_state', { p_woman_id: womanId })
+        await loadFreeInfo()
+      } catch (e) { flash(e.message, true); return }
+    }
+    setAppChoice('budget')
+  }
 
   const checkAccessAgain = async () => {
     try {
@@ -517,15 +584,49 @@ export default function App() {
     return <Login onSignup={signup} onLogin={login} onClaim={claim} busy={busy} />
   }
 
-  // ---------------------------------------------------------------- Locked
-  // No active subscription: nothing of hers is shown until IMARA confirms payment.
-  if (locked) {
+  // ------------------------------------------------------------ Free tier
+  // No active subscription (never paid, or a past member): she gets the
+  // Financial Mirror, a one-month budget tracker and the Wealth Summit.
+  // Everything else is locked until IMARA confirms payment.
+  const upgradeCard = (() => {
+    const phase = freeInfo?.pay_phase
+    const link = typeof renewalInfo?.link === 'string' && renewalInfo.link.startsWith('https://') ? renewalInfo.link : null
+    return (
+      <div className="card" style={{ textAlign: 'center' }}>
+        <b>Ready to build this with sisters?</b>
+        {phase === 'open' && link ? (
+          <a className="btn btn-primary" style={{ marginTop: 12, display: 'block' }} href={link} target="_blank" rel="noreferrer">Join IMARA</a>
+        ) : phase === 'closed' ? (
+          <p className="small muted" style={{ marginTop: 8 }}>Payments are closed for now. Check back when IMARA opens again.</p>
+        ) : phase === 'open' ? (
+          <p className="small muted" style={{ marginTop: 8 }}>Payments are open. Your payment link will show on your home screen once your mentor or IMARA admin adds it.</p>
+        ) : (
+          <button className="btn btn-primary" style={{ marginTop: 12 }} disabled>Opens 1 Dec</button>
+        )}
+      </div>
+    )
+  })()
+
+  if (locked && appChoice === 'mirror') {
     return (
       <>
-        <Locked
+        {homeBar}
+        <Mirror saved={freeInfo?.mirror} isPaid={false} onSave={saveMirror} ctaSlot={upgradeCard} onSignOut={signOut} />
+        {toastEl}
+      </>
+    )
+  }
+
+  if (locked && appChoice !== 'budget') {
+    return (
+      <>
+        <FreeHome
           firstName={state.woman.first_name?.toLowerCase()}
-          info={renewalInfo}
+          info={freeInfo}
+          renewalInfo={renewalInfo}
           busy={busy}
+          onMirror={() => setAppChoice('mirror')}
+          onBudget={startFreeBudget}
           onCheckAgain={checkAccessAgain}
           onSignOut={signOut}
         />
@@ -573,7 +674,32 @@ export default function App() {
           onSelectAssist={() => setAppChoice('assist')}
           onSelectLeader={() => setAppChoice('leader')}
           onSelectQuiz={() => setAppChoice('quiz')}
+          journey={journey}
+          onSelectJourney={() => setAppChoice('journey')}
+          mirror={freeInfo?.mirror}
+          onSelectMirror={() => setAppChoice('mirror')}
         />
+        {toastEl}
+      </>
+    )
+  }
+
+  // ---------------------------------------------------- Mirror + my week (paid)
+  if (appChoice === 'mirror') {
+    return (
+      <>
+        {homeBar}
+        <Mirror saved={freeInfo?.mirror} isPaid onSave={saveMirror} onSignOut={signOut} />
+        {toastEl}
+      </>
+    )
+  }
+
+  if (appChoice === 'journey') {
+    return (
+      <>
+        {homeBar}
+        <Journey womanId={womanId} onError={(m) => flash(m, true)} onSwitchApp={switchApp} />
         {toastEl}
       </>
     )
@@ -736,6 +862,15 @@ export default function App() {
   return (
     <>
       {homeBar}
+      {locked && freeInfo && (
+        <div style={{ background: 'var(--peach)', color: 'var(--maroon-900)', padding: '10px 16px', textAlign: 'center' }}>
+          <span className="small">
+            {freeInfo.free_state === 'open'
+              ? `Free month · ${freeInfo.free_days_left} ${freeInfo.free_days_left === 1 ? 'day' : 'days'} left`
+              : 'Your free month has ended. Your budget is read-only now.'}
+          </span>
+        </div>
+      )}
       {gracePeriod && effectiveView === 'dashboard' && (
         <div style={{ background: 'var(--peach)', color: 'var(--maroon-900)', padding: '10px 16px', textAlign: 'center' }}>
           <span className="small">
@@ -791,7 +926,10 @@ export default function App() {
           onAdd={(mode, line) => setSheet({ mode, line })}
           onDelete={deleteEntry}
           onOpenSummary={() => setView('summary')}
-          onOpenSettings={() => setView('settings')}
+          onOpenSettings={() => {
+            if (accessStatus !== 'active') { flash('Your split is set for your free month. Join IMARA to change it.', true); return }
+            setView('settings')
+          }}
           onOpenHistory={() => setView('history')}
           onSignOut={signOut}
           onSwitchApp={switchApp}
