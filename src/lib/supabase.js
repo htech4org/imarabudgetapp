@@ -65,6 +65,9 @@ const MESSAGES = {
   bad_realisation:     "Write one short sentence (up to 500 characters).",
   no_such_period:      "That month could not be found, or already has a realisation.",
   access_locked:       "Your access has ended. Renew to continue.",
+  free_ended:          "Your free month has finished, so this budget is read-only now. Join IMARA to keep adding to it.",
+  split_locked:        "On the free plan your split is set by IMARA. Join IMARA to change your percentages.",
+  bad_mirror:          "That result could not be saved. Please take the mirror again.",
   bad_link:            "That doesn't look like a valid Selar link — it must start with https:// and be a selar.com or selar.co address.",
   bad_days:            "Enter a number of days between 1 and 366.",
 }
