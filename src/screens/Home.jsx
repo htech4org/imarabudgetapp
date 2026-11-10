@@ -49,11 +49,14 @@ export default function Home({
   // Quizzes show only while one is open (not past its deadline).
   const openQuizzes = (quizzes || []).filter((q) => !q.closed)
   const quizToDo = openQuizzes.some((q) => !q.passed && q.attempts_left > 0)
-  const quizCloses = openQuizzes.length
+  const quizPick = openQuizzes
+    .filter((q) => !q.passed && q.attempts_left > 0)
+    .sort((a, b) => String(a.closes_at || '9').localeCompare(String(b.closes_at || '9')))[0]
+  const quizCloses = quizPick?.closes_at || (openQuizzes.length
     ? openQuizzes.map((q) => q.closes_at).filter(Boolean).sort()[0]
-    : null
+    : null)
   const quizClosesText = quizCloses
-    ? `${new Date(quizCloses).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Africa/Lagos' })} ${new Date(quizCloses).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Africa/Lagos' }).replace(' ', '').toLowerCase()}`
+    ? `${new Date(quizCloses).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Africa/Lagos' })} ${new Date(quizCloses).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Africa/Lagos' }).replace(' ', '').toLowerCase()} WAT`
     : ''
   const greeting = hour < 12 ? 'good morning' : hour < 17 ? 'good afternoon' : 'good evening'
   const name = properName(firstName)
@@ -193,12 +196,18 @@ export default function Home({
         )}
 
         {onSelectQuiz && quizToDo && (
-          <button type="button" className="home-renew" onClick={onSelectQuiz} style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}>
-            <span>
-              <b>this week's class quizzes</b>
-              <small>Missed Tuesday or want to be sure? Take the quiz. Closes {quizClosesText}.</small>
+          <button type="button" className="home-quiz" onClick={onSelectQuiz}>
+            <span className="hq-eb">CLASS QUIZ{quizPick?.subtitle ? ` · ${String(quizPick.subtitle).split(' · ')[0].toUpperCase()}` : ''}</span>
+            <b>{quizPick?.title ? quizPick.title : "this week's class quiz"}</b>
+            <small>
+              {quizPick?.questions ? `${quizPick.questions} questions` : 'A few questions'}
+              {quizPick?.max_attempts ? `, ${quizPick.max_attempts} tries` : ''}
+              {quizClosesText ? `. Closes ${quizClosesText}.` : '.'}
+            </small>
+            <span className="hq-row">
+              <span className="hq-dots">{Array.from({ length: Math.min(quizPick?.questions || 8, 12) }).map((_, i) => <i key={i} />)}</span>
+              <span className="hq-go">Take the quiz</span>
             </span>
-            <span className="home-go">Take it</span>
           </button>
         )}
 
@@ -425,6 +434,15 @@ export const CSS = `
 .home-renew{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--cream);border:1px solid var(--peach);border-radius:16px;padding:12px 14px}
 .home-renew b{font-family:var(--font-display);font-size:15.5px;text-transform:lowercase;display:block;color:var(--maroon-900)}
 .home-renew small{font-size:11.5px;color:var(--text-soft);line-height:1.5;display:block;margin-top:2px}
+.home-quiz{position:relative;overflow:hidden;display:block;width:100%;text-align:left;cursor:pointer;border:0;background:var(--maroon-900);color:#fff;border-radius:20px;padding:16px}
+.home-quiz:after{content:"?";position:absolute;right:-6px;top:-34px;font:700 130px var(--font-display);color:rgba(221,142,13,.16);pointer-events:none}
+.home-quiz .hq-eb{display:block;font-size:10.5px;letter-spacing:.16em;color:var(--gold);font-weight:700}
+.home-quiz b{display:block;font-family:var(--font-display);font-size:20px;text-transform:lowercase;margin:4px 0 3px;line-height:1.2;padding-right:40px}
+.home-quiz small{display:block;font-size:12px;opacity:.85;line-height:1.5}
+.home-quiz .hq-row{display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px}
+.home-quiz .hq-dots{display:flex;gap:5px}
+.home-quiz .hq-dots i{width:18px;height:5px;border-radius:3px;background:rgba(255,255,255,.28)}
+.home-quiz .hq-go{background:var(--gold);color:var(--maroon-900);font-weight:800;font-size:13px;padding:9px 16px;border-radius:12px;white-space:nowrap}
 .home-renew .home-go{background:var(--maroon-900);color:#fff;text-decoration:none}
 .home-sec{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--text-soft);margin:22px 2px 10px}
 .home-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:0!important}
