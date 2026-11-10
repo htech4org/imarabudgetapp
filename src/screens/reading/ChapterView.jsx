@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ChapterText from '../../components/ChapterText'
 
 // Three internal stages:
 //   'read'   — chapter content, with a button into the test (skipped
@@ -80,7 +81,7 @@ export default function ChapterView({
           <>
             <div className="card">
               {hasContent
-                ? <p className="small" style={{ lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{chapter.content}</p>
+                ? <ChapterText text={chapter.content} />
                 : <p className="small muted">There is no reading text for this chapter.</p>}
             </div>
             <p className="tiny muted" style={{ margin: '14px 0 10px' }}>You passed this chapter. This is just for re-reading.</p>
@@ -100,7 +101,7 @@ export default function ChapterView({
         {!isReview && stage === 'read' && (
           <>
             <div className="card">
-              <p className="small" style={{ lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{chapter.content}</p>
+              <ChapterText text={chapter.content} />
             </div>
             <button className="btn btn-primary" style={{ marginTop: 18 }} onClick={() => setStage('test')}>
               {questions.length > 0 ? 'Take the chapter test' : 'Mark chapter as read'}
