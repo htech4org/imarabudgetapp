@@ -208,7 +208,7 @@ export default function Quiz({ womanId, onError, onSwitchApp, onSignOut }) {
             Missed Tuesday, or want to be sure it sank in? Take the quiz. You get two attempts, so watch the recording before your retake.
           </p>
           {list.length === 0 && <div className="empty-state"><p className="small muted">No quizzes yet.</p></div>}
-          {list.map((q) => (
+          {[...list].sort(byPriority).map((q) => (
             <div key={q.quiz_id} className="card stack-s">
               <div className="row-between">
                 <span className="eyebrow">{SYSTEM_LABEL[q.system]}</span>
@@ -240,6 +240,17 @@ export default function Quiz({ womanId, onError, onSwitchApp, onSignOut }) {
       {footer}
     </div>
   )
+}
+
+// This week's quiz first: open and still to do (soonest closing first),
+// then open and done, then closed ones with the most recent on top.
+function byPriority(a, b) {
+  const rank = (q) => (q.closed ? 2 : (!q.passed && q.attempts_left > 0) ? 0 : 1)
+  const ra = rank(a), rb = rank(b)
+  if (ra !== rb) return ra - rb
+  const ta = a.closes_at ? new Date(a.closes_at).getTime() : 0
+  const tb = b.closes_at ? new Date(b.closes_at).getTime() : 0
+  return ra === 2 ? tb - ta : ta - tb
 }
 
 function ReviewList({ items }) {
