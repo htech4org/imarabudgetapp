@@ -10,9 +10,11 @@ function kind(line) {
   if (/^•\s/.test(l)) return 'bullet'
   if (/^\d\s=\s/.test(l)) return 'scale'
   if (/^(Subtotal|Total Score)\b/.test(l)) return 'score'
+  if (/^[a-g]\)\s/.test(l)) return 'item'
+  if (/^[☐□]\s?/.test(l)) return 'check'
   if (/^(\d{1,2}\.|[A-H]\.)\s/.test(l)) {
     const body = l.replace(/^(\d{1,2}\.|[A-H]\.)\s+/, '')
-    return /[.?!”"’:;)]$/.test(body) || body.length > 90 ? 'item' : 'h3'
+    return /[.?!”"’:;)…]$/.test(body) || /^_+/.test(body) || body.length > 90 ? 'item' : 'h3'
   }
   if (/^Step \d+:/.test(l) && !/[.?!]$/.test(l) && l.length <= 90) return 'h3'
   if (/^(\d{2,3}\s[–-]\s\d{2,3}|Below \d+)\s?:/.test(l) && l.length <= 80) return 'result'
@@ -24,7 +26,7 @@ function kind(line) {
   if (letters.length >= 4 && letters === letters.toUpperCase() && l.length <= 100) return 'h2'
   const words = l.split(/\s+/)
   const title = words.filter((w) => w.length > 3).every((w) => /^[A-Z“(]/.test(w))
-  if (l.length <= 90 && !/[.,;:!”"’)]$/.test(l) && /^[A-Z“]/.test(l)) {
+  if (l.length <= 90 && !/[.,;:!”"’)…]$/.test(l) && /^[A-Z“]/.test(l)) {
     if (l.endsWith('?')) return 'p'
     return 'h3'
   }
@@ -46,7 +48,7 @@ export default function ChapterText({ text }) {
     let k = kind(line)
     if (i === 0 && /^[“"].*[”"]$/.test(line) && line.length < 220) k = 'epigraph'
     const last = blocks[blocks.length - 1]
-    if (k === 'bullet' || k === 'item' || k === 'scale') {
+    if (k === 'bullet' || k === 'item' || k === 'scale' || k === 'check') {
       const t = k === 'bullet' ? line.replace(/^•\s*/, '') : line
       if (last && last.k === k) last.items.push(t)
       else blocks.push({ k, items: [t] })
@@ -65,14 +67,17 @@ export default function ChapterText({ text }) {
           case 'result': return <h3 key={i} className="ct-h3 ct-res">{b.t}</h3>
           case 'score': return <p key={i} className="ct-score">{b.t}</p>
           case 'sign': return <p key={i} className="ct-sign">{b.t}</p>
-          case 'bullet': return <ul key={i} className="ct-ul">{b.items.map((t, j) => <li key={j}>{t}</li>)}</ul>
+          case 'bullet': return <ul key={i} className="ct-ul">{b.items.map((t, j) => <li key={j}><ItemText text={t} /></li>)}</ul>
+          case 'check': return <div key={i} className="ct-checks">{b.items.map((t, j) => <div key={j} className="ct-check"><span className="ct-box">☐</span><span>{t.replace(/^[☐□]\s*/, '')}</span></div>)}</div>
           case 'scale': return <div key={i} className="ct-scale">{b.items.map((t, j) => <div key={j}>{t}</div>)}</div>
           case 'item': return (
             <div key={i} className="ct-list">
               {b.items.map((t, j) => {
-                const m = t.match(/^(\d{1,2}\.|[A-H]\.)\s+(.*)$/)
+                const m = t.match(/^(\d{1,2}\.|[A-H]\.|[a-g]\))\s+(.*)$/)
+                const isQ = /^\d/.test(t) && /^[a-g]\)\s/.test(b.items[j + 1] || '')
+                const isOpt = /^[a-g]\)\s/.test(t)
                 return (
-                  <div key={j} className="ct-item">
+                  <div key={j} className={`ct-item${isQ ? ' ct-q' : ''}${isOpt ? ' ct-opt' : ''}`}>
                     <span className="ct-num">{m ? m[1] : ''}</span>
                     <span><ItemText text={m ? m[2] : t} /></span>
                   </div>
@@ -102,7 +107,12 @@ const CSS = `
 .ct-ul li::marker{color:var(--clay,#BE512A)}
 .ct-list{margin:0 0 16px}
 .ct-item{display:flex;gap:10px;margin:0 0 10px}
+.ct-q{margin-top:18px;font-weight:600;color:var(--maroon-900)}
+.ct-opt{margin-left:6px;margin-bottom:7px}
 .ct-num{flex:0 0 28px;font-weight:700;color:var(--maroon-900)}
+.ct-checks{margin:0 0 16px}
+.ct-check{display:flex;gap:10px;margin:0 0 8px}
+.ct-box{flex:0 0 22px;color:var(--maroon-900);font-size:18px;line-height:1.5}
 .ct-scale{margin:0 0 16px;padding:10px 14px;border-radius:10px;background:rgba(76,5,11,.05);font-size:14.5px;line-height:1.7}
 .ct-score{text-align:right;font-weight:700;color:var(--maroon-900);margin:-4px 0 18px!important}
 .ct-sign{font-style:italic;margin:-6px 0 16px!important}
