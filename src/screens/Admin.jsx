@@ -568,13 +568,15 @@ function RecordingStatus({ password }) {
 // Attendance logs: who tapped a Tuesday class link, and whether each mentor
 // has recorded attendance for her team.
 function AttendanceTab({ password }) {
+  const [rk, setRk] = useState(0)
   return (
     <div className="admin">
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, alignItems: 'start' }}>
         <ClassTaps password={password} />
         <RecordingStatus password={password} />
       </div>
-      <ReplayTaps password={password} />
+      <ReplaySettings password={password} onSaved={() => setRk((n) => n + 1)} />
+      <ReplayTaps password={password} refreshKey={rk} />
       <p className="tiny faint center" style={{ marginTop: 30 }}>
         © IMARA Wealth Trybe · Leading Ladies Foundation
       </p>
@@ -684,26 +686,120 @@ function ClassTaps({ password }) {
 }
 
 // Taps on "Watch the replay" with the time. A tap shows she tried to watch, not that she stayed.
-function ReplayTaps({ password }) {
-  const [data, setData] = useState(null)
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+// Weekly replay: turn it on, pick the day and time, paste the link. While it is
+// ON, women see the replay card every week on that day (Lagos time).
+function ReplaySettings({ password, onSaved }) {
+  const [form, setForm] = useState(null)
+  const [live, setLive] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const load = async () => {
-    setError('')
-    try { setData(await rpc('imara_admin_replay_clicks', { p_admin_password: password, p_date: null })) }
-    catch (e) { setError(e.message) }
+  const [note, setNote] = useState('')
+  useEffect(() => {
+    rpc('imara_admin_replay_get', { p_admin_password: password })
+      .then((d) => { setForm({ active: d.active, day: d.day, time: d.time, title: d.title, link: d.link }); setLive(d.live_now) })
+      .catch((e) => setError(e.message))
+  }, [password])
+  if (!form) return <div className="panel" style={{ marginTop: 16 }}>{error ? <div className="error-note">{error}</div> : <p className="small muted">Loading replay settings…</p>}</div>
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  const save = async (next) => {
+    const f = { ...form, ...next }
+    setBusy(true); setError(''); setNote('')
+    try {
+      const d = await rpc('imara_admin_replay_set', {
+        p_admin_password: password, p_active: f.active, p_day: Number(f.day),
+        p_time: f.time, p_title: f.title, p_link: f.link,
+      })
+      setForm({ active: d.active, day: d.day, time: d.time, title: d.title, link: d.link })
+      setLive(d.live_now)
+      setNote(d.active ? `Saved. The replay shows every ${DAYS[d.day]}.` : 'Saved. The replay is off.')
+      onSaved?.()
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  const rows = data?.rows || []
-  const cell = { padding: '9px 8px', borderTop: '1px solid var(--line)' }
   return (
     <div className="panel" style={{ marginTop: 16 }}>
       <div className="row-between" style={{ alignItems: 'center' }}>
-        <span className="small" style={{ fontWeight: 700 }}>Replay taps{data?.date ? ` · ${data.date}` : ''} · {rows.length}</span>
-        <button className="btn btn-sm btn-soft" onClick={load}>Refresh</button>
+        <span className="small" style={{ fontWeight: 700 }}>Weekly replay</span>
+        <span className="tiny" style={{ fontWeight: 700, color: form.active ? 'var(--green)' : 'var(--muted)' }}>
+          {form.active ? (live ? 'ON · showing now' : `ON · every ${DAYS[form.day]}`) : 'OFF'}
+        </span>
+      </div>
+      <p className="tiny muted" style={{ margin: '6px 0 12px' }}>
+        When ON, women see "Watch the replay" on Home and the class screen on this day, every week, with the time below. Change the link each week.
+      </p>
+      <div className="field">
+        <label className="label">Replay link (YouTube)</label>
+        <input className="input" placeholder="https://youtu.be/…" value={form.link} onChange={(e) => set('link', e.target.value)} />
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div className="field" style={{ flex: 1, minWidth: 140 }}>
+          <label className="label">Day</label>
+          <select className="input" value={form.day} onChange={(e) => set('day', Number(e.target.value))}>
+            {DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+          </select>
+        </div>
+        <div className="field" style={{ flex: 1, minWidth: 120 }}>
+          <label className="label">Time (WAT)</label>
+          <input className="input" type="time" value={form.time} onChange={(e) => set('time', e.target.value)} />
+        </div>
+      </div>
+      <div className="field">
+        <label className="label">Title shown to women</label>
+        <input className="input" value={form.title} onChange={(e) => set('title', e.target.value)} />
+      </div>
+      {error && <div className="error-note" style={{ marginBottom: 10 }}>{error}</div>}
+      {note && <p className="small" style={{ marginBottom: 10, color: 'var(--green)' }}>{note}</p>}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {form.active ? (
+          <>
+            <button className="btn btn-primary" disabled={busy} onClick={() => save({})}>{busy ? 'Saving…' : 'Save changes'}</button>
+            <button className="btn btn-soft" disabled={busy} onClick={() => save({ active: false })}>Turn off</button>
+          </>
+        ) : (
+          <button className="btn btn-primary" disabled={busy} onClick={() => save({ active: true })}>{busy ? 'Saving…' : 'Save and turn ON'}</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Replay attendance. A tap on "Watch the replay" is the record: it shows she
+// tried to watch, not that she stayed. Pick any past week.
+function ReplayTaps({ password, refreshKey }) {
+  const [date, setDate] = useState('')          // '' = latest replay day
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [showMissed, setShowMissed] = useState(false)
+  const load = async (d = date) => {
+    setError('')
+    try { setData(await rpc('imara_admin_replay_clicks', { p_admin_password: password, p_date: d || null })) }
+    catch (e) { setError(e.message) }
+  }
+  useEffect(() => { load() }, [refreshKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = data?.rows || []
+  const missed = data?.not_tapped || []
+  const history = data?.history || []
+  const cell = { padding: '9px 8px', borderTop: '1px solid var(--line)' }
+  const pick = (d) => { setDate(d); load(d) }
+  return (
+    <div className="panel" style={{ marginTop: 16 }}>
+      <div className="row-between" style={{ alignItems: 'center' }}>
+        <span className="small" style={{ fontWeight: 700 }}>Replay attendance{data?.date ? ` · ${data.date}` : ''} · {rows.length} tapped</span>
+        <button className="btn btn-sm btn-soft" onClick={() => load()}>Refresh</button>
       </div>
       <p className="tiny muted" style={{ margin: '6px 0 12px' }}>Time of her first tap on "Watch the replay". It shows she tried to watch, not that she stayed.</p>
+      {history.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          {history.map((h) => (
+            <button key={h.d} className={`btn btn-sm ${data?.date === h.d ? 'btn-primary' : 'btn-soft'}`} onClick={() => pick(h.d)}>
+              {h.d} · {h.women}
+            </button>
+          ))}
+        </div>
+      )}
       {error && <div className="error-note">{error}</div>}
-      {!error && rows.length === 0 && <p className="small muted">No taps yet.</p>}
+      {!error && rows.length === 0 && <p className="small muted">No taps yet for this day.</p>}
       {rows.length > 0 && (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 380 }}>
@@ -723,6 +819,18 @@ function ReplayTaps({ password }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {data && (
+        <div style={{ marginTop: 14 }}>
+          <button className="btn-link" onClick={() => setShowMissed((v) => !v)}>
+            {showMissed ? 'Hide' : 'Show'} women who did not tap · {missed.length}
+          </button>
+          {showMissed && (
+            <p className="small" style={{ marginTop: 8, lineHeight: 1.8 }}>
+              {missed.length === 0 ? 'Everyone with access tapped.' : missed.map((m) => `${m.first_name}${m.mentor_name ? ` (${m.mentor_name})` : ''}`).join(', ')}
+            </p>
+          )}
         </div>
       )}
     </div>

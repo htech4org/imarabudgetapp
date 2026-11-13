@@ -4,9 +4,15 @@ import { CREED } from '../lib/constants'
 // Foundation Arc classes have ended. Set to true to show its Tuesday link again.
 const FOUNDATION_ARC_ACTIVE = false
 
-// One-off restream of Tuesday's class on YouTube (Lagos date, YYYY-MM-DD).
-// The link itself only comes from the database, on this day, to women with access.
-const RESTREAM_DATE = '2026-11-07'
+// The weekly replay is switched on in Admin (day, time, title, link). Home gets
+// { on, title, time } from the database; the link only comes with the class screen.
+// "19:00" -> "7pm", "19:30" -> "7:30pm"
+const replayTime = (t) => {
+  const [h, m] = String(t || '19:00').split(':').map(Number)
+  const ap = h >= 12 ? 'pm' : 'am'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return m ? `${h12}:${String(m).padStart(2, '0')}${ap}` : `${h12}${ap}`
+}
 import { money } from '../lib/format'
 import { WeekBars, scoreColor } from '../components/WeekBars'
 import { A as MIRROR } from '../lib/mirror'
@@ -24,8 +30,7 @@ const lagosNow = () => {
   const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', hour: 'numeric', hour12: false }).format(now)) % 24
   const day = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', weekday: 'short', day: 'numeric', month: 'short' }).format(now)
   const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Lagos', weekday: 'long' }).format(now)
-  const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
-  return { hour, day: day.replace(',', ''), isTuesday: weekday === 'Tuesday', isRestream: ymd === RESTREAM_DATE }
+  return { hour, day: day.replace(',', ''), isTuesday: weekday === 'Tuesday' }
 }
 
 /**
@@ -40,11 +45,15 @@ const lagosNow = () => {
 export default function Home({
   firstName, isMentor, dayOfMonth, daysInMonth, monthName, money: m, reading, renewal,
   onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading, leaderHome, onSelectLeader, assistantInfo, onSelectAssist, recruiter, onSelectRecruiter, onRegisterRecruiter,
-  journey, onSelectJourney, mirror, onSelectMirror,
+  journey, onSelectJourney, mirror, onSelectMirror, replay,
 }) {
   const [confirmRec, setConfirmRec] = useState(false)
   const [recBusy, setRecBusy] = useState(false)
-  const { hour, day, isTuesday: isTuesdayRaw, isRestream } = lagosNow()
+  const { hour, day, isTuesday: isTuesdayRaw } = lagosNow()
+  const isRestream = !!replay?.on
+  const replayTitle = String(replay?.title || 'The IMARA Foundation')
+  const replayAt = replayTime(replay?.time)
+  const replayWhen = Number(String(replay?.time || '19:00').slice(0, 2)) >= 17 ? 'tonight' : 'today'
   const isTuesday = isTuesdayRaw || isRestream
   // Quizzes show only while one is open (not past its deadline).
   const openQuizzes = (quizzes || []).filter((q) => !q.closed)
@@ -130,8 +139,8 @@ export default function Home({
         {isTuesday && onSelectTuesday && (
           <button type="button" className="home-live" onClick={onSelectTuesday}>
             <span>
-              <b>{isRestream && !isTuesdayRaw ? 'the imara foundation replay tonight' : 'class is live tonight'}</b>
-              <small>{isRestream && !isTuesdayRaw ? 'Watch on YouTube · 7pm' : (FOUNDATION_ARC_ACTIVE ? 'IMARA Circle · Foundation Arc' : 'IMARA Circle')}</small>
+              <b>{isRestream && !isTuesdayRaw ? `${replayTitle.toLowerCase()} replay ${replayWhen}` : 'class is live tonight'}</b>
+              <small>{isRestream && !isTuesdayRaw ? `Watch on YouTube · ${replayAt}` : (FOUNDATION_ARC_ACTIVE ? 'IMARA Circle · Foundation Arc' : 'IMARA Circle')}</small>
             </span>
             <span className="home-go">{isRestream && !isTuesdayRaw ? 'Watch' : 'Join'}</span>
           </button>
@@ -234,7 +243,7 @@ export default function Home({
               onClick={isTuesday ? onSelectTuesday : undefined} disabled={!isTuesday}
             >
               <span className="home-ic">🎥</span>
-              <span><b>tuesday class</b><small>{isRestream && !isTuesdayRaw ? 'Replay tonight at 7pm' : isTuesday ? "Join tonight's class" : 'Opens on Tuesdays'}</small></span>
+              <span><b>tuesday class</b><small>{isRestream && !isTuesdayRaw ? `Replay ${replayWhen} at ${replayAt}` : isTuesday ? "Join tonight's class" : 'Opens on Tuesdays'}</small></span>
             </button>
           )}
           {onSelectQuiz && (
