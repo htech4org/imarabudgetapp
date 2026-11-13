@@ -32,7 +32,7 @@ export default function TuesdayClass({ data, onJoin, onSwitchApp, onSignOut }) {
       <div className="pad" style={{ paddingTop: 24 }}>
         {data.restream && !data.is_tuesday ? (
           <div className="stack" style={{ gap: 14 }}>
-            <RestreamCard link={data.restream.link} onJoin={onJoin} />
+            <RestreamCard replay={data.restream} onJoin={onJoin} />
           </div>
         ) : !data.is_tuesday ? (
           <div className="empty-state">
@@ -40,7 +40,7 @@ export default function TuesdayClass({ data, onJoin, onSwitchApp, onSignOut }) {
           </div>
         ) : (
           <div className="stack" style={{ gap: 14 }}>
-            {data.restream && <RestreamCard link={data.restream.link} onJoin={onJoin} />}
+            {data.restream && <RestreamCard replay={data.restream} onJoin={onJoin} />}
             <div className="card">
               <span className="small" style={{ fontWeight: 700, fontSize: 15 }}>IMARA CIRCLE</span>
               <p className="tiny muted" style={{ margin: '6px 0 12px', lineHeight: 1.7 }}>Live on Zoom.</p>
@@ -85,13 +85,15 @@ export default function TuesdayClass({ data, onJoin, onSwitchApp, onSignOut }) {
   )
 }
 
-function RestreamCard({ link, onJoin }) {
+function RestreamCard({ replay, onJoin }) {
+  const [h, m] = String(replay?.time || '19:00').split(':').map(Number)
+  const at = `${h % 12 === 0 ? 12 : h % 12}${m ? ':' + String(m).padStart(2, '0') : ''}${h >= 12 ? 'pm' : 'am'}`
   return (
     <div className="card">
       <span className="tag">Replay</span>
-      <p className="small" style={{ fontWeight: 700, fontSize: 15, marginTop: 10 }}>THE IMARA FOUNDATION</p>
-      <p className="tiny muted" style={{ margin: '6px 0 14px', lineHeight: 1.7 }}>Replay tonight at 7pm WAT on YouTube.</p>
-      <JoinButton href={link} label="Watch the replay" onClick={() => onJoin?.('replay')} />
+      <p className="small" style={{ fontWeight: 700, fontSize: 15, marginTop: 10 }}>{String(replay?.title || 'The IMARA Foundation').toUpperCase()}</p>
+      <p className="tiny muted" style={{ margin: '6px 0 14px', lineHeight: 1.7 }}>Replay {h >= 17 ? 'tonight' : 'today'} at {at} WAT on YouTube.</p>
+      <JoinButton href={replay?.link} label="Watch the replay" onClick={() => onJoin?.('replay')} />
     </div>
   )
 }
