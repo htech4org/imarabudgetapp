@@ -4,6 +4,7 @@ import { cohort } from '../lib/calc'
 import { ARCHETYPES } from '../lib/constants'
 import { money, moneyShort, pct, shortDate } from '../lib/format'
 import PasswordInput from '../components/PasswordInput'
+import { nudgeLink } from '../lib/nudge'
 import EntryList from '../components/EntryList'
 import Leaderboard from '../components/Leaderboard'
 import ReadingLeaderboard from '../components/ReadingLeaderboard'
@@ -416,6 +417,7 @@ function MentorsTab({ password }) {
   const [women, setWomen] = useState([])
   const [unassigned, setUnassigned] = useState(null)
   const [report, setReport] = useState(null)
+  const [leaderCard, setLeaderCard] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -426,9 +428,12 @@ function MentorsTab({ password }) {
     rpc('imara_admin_month_report', { p_admin_password: password, p_month: monthIso || null })
       .then((o) => { setReport(o); return o })
 
+  const loadLeaderCard = () =>
+    rpc('imara_admin_leader_card', { p_admin_password: password }).then(setLeaderCard).catch(() => setLeaderCard(null))
+
   const refreshAll = async () => {
     setBusy(true); setError('')
-    try { await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport()]) }
+    try { await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(), loadLeaderCard()]) }
     catch (e) { setError(e.message) }
     finally { setBusy(false) }
   }
@@ -470,6 +475,7 @@ function MentorsTab({ password }) {
           women={women}
           unassigned={unassigned}
           report={report}
+          leaderCard={leaderCard}
           onRefreshAll={refreshAll}
           onSetMentor={setMentor}
           onAssignMentor={assignMentor}
@@ -1661,9 +1667,13 @@ function MirrorTab({ password }) {
 // ---------------------------------------------------------------------------
 // Journey tab: every paid woman's weekly score
 // ---------------------------------------------------------------------------
+const LOW = 40   // below this a woman (or mentor) needs follow-up
+
 function JourneyAdminTab({ password }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
+  const [view, setView] = useState('team')   // 'team' | 'score'
+  const [open, setOpen] = useState({})
   const load = async () => {
     setError('')
     try { setData(await rpc('imara_admin_journey', { p_admin_password: password })) }
@@ -1672,22 +1682,69 @@ function JourneyAdminTab({ password }) {
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const rows = data?.rows || []
   const cell = { padding: '9px 8px', borderTop: '1px solid var(--line)' }
-  const col = (n) => (n == null ? 'inherit' : n >= 70 ? 'var(--green)' : n >= 40 ? 'var(--clay)' : 'var(--wine)')
+  const col = (n) => (n == null ? 'inherit' : n >= 70 ? 'var(--green)' : n >= LOW ? 'var(--clay)' : 'var(--wine)')
+  const scoreOf = (r) => (r.sm?.score == null ? null : Number(r.sm.score))
+  const avgOf = (list) => {
+    const v = list.map(scoreOf).filter((x) => x != null)
+    return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null
+  }
+  const byLowest = (a, b) => (scoreOf(a) ?? 999) - (scoreOf(b) ?? 999) || String(a.first_name).localeCompare(b.first_name)
+
+  // Groups: the Trybe Leader's mentors first, then each mentor's team, then women with no mentor.
+  const groups = useMemo(() => {
+    const leader = rows.find((r) => r.is_trybe_leader)
+    const mentors = rows.filter((r) => r.is_mentor && !r.is_trybe_leader)
+    const mk = (key, head, members) => {
+      const list = [...members].sort(byLowest)
+      return { key, head, members: list, avg: avgOf(list), low: list.filter((r) => scoreOf(r) != null && scoreOf(r) < LOW).length }
+    }
+    const teams = mentors.map((m) => mk(m.woman_id, m, rows.filter((r) => r.mentor_id === m.woman_id && r.woman_id !== m.woman_id)))
+      .filter((g) => g.members.length > 0)
+      .sort((a, b) => b.low - a.low || (a.avg ?? 999) - (b.avg ?? 999))
+    const orphans = rows.filter((r) => !r.mentor_id && !r.is_mentor && !r.is_trybe_leader)
+    const out = []
+    if (leader && mentors.length) out.push({ ...mk(`leader-${leader.woman_id}`, leader, mentors), isLeader: true })
+    out.push(...teams)
+    if (orphans.length) out.push({ ...mk('none', { first_name: 'No mentor yet' }, orphans), noHead: true })
+    return out
+  }, [rows]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const nudge = (r) => {
+    const href = nudgeLink(r.phone, r.first_name, r.sm?.flags)
+    return href ? (
+      <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+         style={{ fontSize: 11, fontWeight: 700, color: 'var(--clay)', textDecoration: 'none', border: '1px solid var(--clay)', borderRadius: 99, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+        WhatsApp
+      </a>
+    ) : null
+  }
+  const seg = (k, label) => (
+    <button key={k} className={`btn btn-sm ${view === k ? 'btn-primary' : 'btn-soft'}`} onClick={() => setView(k)}>{label}</button>
+  )
+
   return (
     <div className="admin">
       <div className="panel">
-        <div className="row-between" style={{ alignItems: 'center' }}>
+        <div className="row-between" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <span className="small" style={{ fontWeight: 700 }}>IMARA Journey{data?.week ? ` · week ${data.week}` : ''} · {rows.length} women</span>
-          <button className="btn btn-sm btn-soft" onClick={load}>Refresh</button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {seg('team', 'By team')}{seg('score', 'By score')}
+            <button className="btn btn-sm btn-soft" onClick={load}>Refresh</button>
+          </div>
         </div>
-        <p className="tiny muted" style={{ margin: '6px 0 12px' }}>Lowest scores first. Reading, class, quiz, mastermind and investment count 20 points each.</p>
+        <p className="tiny muted" style={{ margin: '6px 0 12px' }}>
+          {view === 'team'
+            ? `Teams that need the most follow-up come first. Below ${LOW}% needs a nudge. Reading, class, quiz, mastermind and investment count 20 points each.`
+            : 'Lowest scores first. Reading, class, quiz, mastermind and investment count 20 points each.'}
+        </p>
         {error && <div className="error-note">{error}</div>}
         {!error && rows.length === 0 && <p className="small muted">Nothing to show yet.</p>}
-        {rows.length > 0 && (
+
+        {view === 'score' && rows.length > 0 && (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 520 }}>
               <thead><tr style={{ textAlign: 'left' }}>
-                {['Woman', 'Mentor', 'This week', 'Average', 'Missing'].map((h) => (
+                {['Woman', 'Mentor', 'This week', 'Average', 'Missing', ''].map((h) => (
                   <th key={h} className="tiny muted" style={{ padding: '0 8px 8px', textTransform: 'uppercase', letterSpacing: '.09em' }}>{h}</th>
                 ))}
               </tr></thead>
@@ -1699,12 +1756,59 @@ function JourneyAdminTab({ password }) {
                     <td style={{ ...cell, color: col(r.sm?.score), fontWeight: 700 }}>{r.sm?.score == null ? '—' : `${r.sm.score}%`}</td>
                     <td style={cell}>{r.sm?.average == null ? '—' : `${r.sm.average}%`}</td>
                     <td style={cell}>{(r.sm?.flags || []).join(', ') || '—'}</td>
+                    <td style={cell}>{scoreOf(r) != null && scoreOf(r) < LOW ? nudge(r) : null}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+
+        {view === 'team' && groups.map((g, gi) => {
+          const isOpen = open[g.key] ?? gi === 0
+          const mscore = g.noHead || g.isLeader ? null : scoreOf(g.head)
+          return (
+            <div key={g.key} className="card" style={{ marginTop: 12, border: g.low > 0 ? '1.5px solid var(--clay)' : undefined, background: g.isLeader ? 'var(--maroon-900)' : undefined, color: g.isLeader ? 'var(--cream)' : undefined }}>
+              <div onClick={() => setOpen({ ...open, [g.key]: !isOpen })} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', cursor: 'pointer' }}>
+                <div style={{ flex: 1, minWidth: 150 }}>
+                  <b style={{ fontSize: 14 }}>
+                    {g.isLeader ? `${g.head.first_name} · Trybe Leader` : g.head.first_name}
+                    <span style={{ fontWeight: 400, opacity: 0.7 }}> · {g.members.length} {g.isLeader ? 'mentors' : 'women'}</span>
+                  </b>
+                  {mscore != null && <small style={{ display: 'block', opacity: 0.7 }}>Her own score <b style={{ color: col(mscore) }}>{mscore}%</b></small>}
+                  {g.isLeader && scoreOf(g.head) != null && <small style={{ display: 'block', opacity: 0.8 }}>Her own score {scoreOf(g.head)}%</small>}
+                </div>
+                <div style={{ width: 130 }}>
+                  <span style={{ display: 'block', height: 6, borderRadius: 9, background: 'rgba(128,128,128,.25)', overflow: 'hidden' }}>
+                    <i style={{ display: 'block', height: '100%', width: `${g.avg || 0}%`, background: col(g.avg) }} />
+                  </span>
+                  <small style={{ opacity: 0.75 }}>{g.isLeader ? 'Mentors' : 'Team'} avg {g.avg == null ? '–' : `${g.avg}%`}</small>
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99, whiteSpace: 'nowrap', background: g.low > 0 ? '#FFD9DF' : '#DDF3E8', color: g.low > 0 ? 'var(--wine)' : '#1f7a55' }}>{g.low > 0 ? `${g.low} below ${LOW}%` : 'all on track'}</span>
+                {!g.noHead && !g.isLeader && mscore != null && mscore < LOW && nudge(g.head)}
+                <span style={{ opacity: 0.6 }}>{isOpen ? '▲' : '▼'}</span>
+              </div>
+              {isOpen && (
+                <div style={{ marginTop: 8 }}>
+                  {g.members.map((r) => {
+                    const sc = scoreOf(r)
+                    const low = sc != null && sc < LOW
+                    return (
+                      <div key={r.woman_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: '1px solid var(--line)', fontSize: 12.5, flexWrap: 'wrap' }}>
+                        <b style={{ flex: 1, minWidth: 90 }}>{r.first_name}</b>
+                        <b style={{ width: 44, color: col(sc) }}>{sc == null ? '—' : `${sc}%`}</b>
+                        <span style={{ flex: 2, minWidth: 150, opacity: 0.75 }}>
+                          avg {r.sm?.average == null ? '–' : `${r.sm.average}%`}{(r.sm?.flags || []).length ? ` · missing: ${r.sm.flags.join(', ').toLowerCase()}` : ''}
+                        </span>
+                        {low && nudge(r)}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
