@@ -61,6 +61,7 @@ export default function App() {
   const [renewalInfo, setRenewalInfo] = useState(null)  // { status, paid_until, is_mentor, mentor_name, link }
   const [homeReading, setHomeReading] = useState(null)  // imara_home_reading result
   const [homeRenewal, setHomeRenewal] = useState(null)  // renewal reminder on Home
+  const [homeReplay, setHomeReplay] = useState(null)  // imara_replay_today: is the weekly replay on today
   const [recruiterState, setRecruiterState] = useState(null)  // imara_recruiter_state: banner / tile on Home
   const [assistantInfo, setAssistantInfo] = useState(null)  // imara_assistant_info: whom she helps with attendance
   const [leaderHome, setLeaderHome] = useState(null)  // imara_leader_home: Trybe Leader flag and report reminders
@@ -476,6 +477,14 @@ export default function App() {
     return daysLeft >= 1 && reached <= 16 ? daysLeft : null
   }, [paidUntil, exempt])
   useEffect(() => {
+    if (appChoice || !womanId || locked) { setHomeReplay(null); return }
+    let cancelled = false
+    rpc('imara_replay_today', { p_woman_id: womanId })
+      .then((d) => { if (!cancelled) setHomeReplay(d) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [appChoice, womanId, locked])
+  useEffect(() => {
     if (appChoice || !womanId || locked || renewalDaysLeft == null) { setHomeRenewal(null); return }
     let cancelled = false
     rpc('imara_renewal_info', { p_woman_id: womanId })
@@ -654,6 +663,7 @@ export default function App() {
           money={homeMoney}
           reading={homeReading}
           renewal={homeRenewal}
+          replay={homeReplay}
           onContinueReading={continueReading}
           onSelectBudget={() => setAppChoice('budget')}
           onSelectReading={() => setAppChoice('reading')}
