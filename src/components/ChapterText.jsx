@@ -41,8 +41,29 @@ function ItemText({ text }) {
   return text
 }
 
+// Some imported chapters have a whole numbered list on one line
+// ("1.Which… 2.Are you… 3.What…") or no space after the number. Put each
+// numbered item on its own line, but only when the numbers run in order.
+function explode(line) {
+  const fixed = line.replace(/^(\d{1,2}\.)(?=[A-Z“"])/, '$1 ')
+  if (!/^\d{1,2}\./.test(fixed)) return [fixed]
+  const marks = []
+  const re = /(?<![\d:.\w])(\d{1,2})\.\s?(?=[A-Z“"])/g
+  let m
+  while ((m = re.exec(fixed))) marks.push({ n: Number(m[1]), at: m.index, len: m[0].length })
+  if (marks.length < 2 || marks[0].at !== 0) return [fixed]
+  let ok = 1
+  while (ok < marks.length && marks[ok].n === marks[ok - 1].n + 1) ok++
+  if (ok < 2) return [fixed]
+  const use = marks.slice(0, ok)
+  return use.map((mk, i) => {
+    const end = i + 1 < use.length ? use[i + 1].at : fixed.length
+    return `${mk.n}. ${fixed.slice(mk.at + mk.len, end).trim()}`
+  })
+}
+
 export default function ChapterText({ text }) {
-  const lines = String(text || '').split('\n').map((s) => s.trim()).filter(Boolean)
+  const lines = String(text || '').split('\n').map((s) => s.trim()).filter(Boolean).flatMap(explode)
   const blocks = []
   lines.forEach((line, i) => {
     let k = kind(line)
