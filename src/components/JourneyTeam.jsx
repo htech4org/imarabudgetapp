@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { rpc } from '../lib/supabase'
 import { scoreColor } from './WeekBars'
+import { nudgeLink } from '../lib/nudge'
 
 /**
  * IMARA Journey scores for a mentor's team, or (mode "leader") for the Trybe
@@ -53,6 +54,12 @@ export default function JourneyTeam({ womanId, mode = 'mentor' }) {
                   <i style={{ display: 'block', height: '100%', width: `${s || 0}%`, background: scoreColor(s) }} />
                 </span>
                 <b style={{ fontSize: 13, width: 36, textAlign: 'right' }}>{s != null ? `${s}%` : '–'}</b>
+                {s != null && s < 40 && nudgeLink(r.phone, r.first_name, flags) && (
+                  <a href={nudgeLink(r.phone, r.first_name, flags)} target="_blank" rel="noopener noreferrer"
+                     style={{ fontSize: 11, fontWeight: 700, color: 'var(--clay)', textDecoration: 'none', border: '1px solid var(--clay)', borderRadius: 99, padding: '3px 9px' }}>
+                    Nudge
+                  </a>
+                )}
               </span>
             </div>
           )
