@@ -417,7 +417,8 @@ function MentorsTab({ password }) {
   const [women, setWomen] = useState([])
   const [unassigned, setUnassigned] = useState(null)
   const [report, setReport] = useState(null)
-  const [leaderCard, setLeaderCard] = useState(null)
+  const [trybe, setTrybe] = useState(null)
+  const [journeyRows, setJourneyRows] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -428,12 +429,15 @@ function MentorsTab({ password }) {
     rpc('imara_admin_month_report', { p_admin_password: password, p_month: monthIso || null })
       .then((o) => { setReport(o); return o })
 
-  const loadLeaderCard = () =>
-    rpc('imara_admin_leader_card', { p_admin_password: password }).then(setLeaderCard).catch(() => setLeaderCard(null))
+  const loadTrybe = () =>
+    Promise.all([
+      rpc('imara_admin_trybe_tab', { p_admin_password: password }).then(setTrybe).catch(() => setTrybe(null)),
+      rpc('imara_admin_journey', { p_admin_password: password }).then((d) => setJourneyRows(d?.rows || [])).catch(() => setJourneyRows([])),
+    ])
 
   const refreshAll = async () => {
     setBusy(true); setError('')
-    try { await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(), loadLeaderCard()]) }
+    try { await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(), loadTrybe()]) }
     catch (e) { setError(e.message) }
     finally { setBusy(false) }
   }
@@ -442,7 +446,7 @@ function MentorsTab({ password }) {
     setBusy(true)
     try {
       await rpc('imara_admin_set_mentor', { p_admin_password: password, p_woman_id: womanId, p_is_mentor: isMentor })
-      await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(report?.month)])
+      await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(report?.month), loadTrybe()])
     } finally { setBusy(false) }
   }
 
@@ -450,7 +454,15 @@ function MentorsTab({ password }) {
     setBusy(true)
     try {
       await rpc('imara_admin_assign_mentor', { p_admin_password: password, p_woman_id: womanId, p_mentor_id: mentorId })
-      await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(report?.month)])
+      await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(report?.month), loadTrybe()])
+    } finally { setBusy(false) }
+  }
+
+  const setLeader = async (womanId, on) => {
+    setBusy(true)
+    try {
+      await rpc('imara_admin_set_trybe_leader', { p_admin_password: password, p_woman_id: womanId, p_on: on })
+      await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(report?.month), loadTrybe()])
     } finally { setBusy(false) }
   }
 
@@ -461,7 +473,7 @@ function MentorsTab({ password }) {
       for (const id of womanIds) {
         await rpc('imara_admin_assign_mentor', { p_admin_password: password, p_woman_id: id, p_mentor_id: mentorId })
       }
-      await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(report?.month)])
+      await Promise.all([loadMentors(), loadWomen(), loadUnassigned(), loadReport(report?.month), loadTrybe()])
     } finally { setBusy(false) }
   }
 
@@ -475,7 +487,9 @@ function MentorsTab({ password }) {
           women={women}
           unassigned={unassigned}
           report={report}
-          leaderCard={leaderCard}
+          trybe={trybe}
+          journey={journeyRows}
+          onSetLeader={setLeader}
           onRefreshAll={refreshAll}
           onSetMentor={setMentor}
           onAssignMentor={assignMentor}
@@ -1692,7 +1706,7 @@ function JourneyAdminTab({ password }) {
 
   // Groups: the Trybe Leader's mentors first, then each mentor's team, then women with no mentor.
   const groups = useMemo(() => {
-    const leader = rows.find((r) => r.is_trybe_leader)
+    const leaders = rows.filter((r) => r.is_trybe_leader)
     const mentors = rows.filter((r) => r.is_mentor && !r.is_trybe_leader)
     const mk = (key, head, members) => {
       const list = [...members].sort(byLowest)
@@ -1703,7 +1717,10 @@ function JourneyAdminTab({ password }) {
       .sort((a, b) => b.low - a.low || (a.avg ?? 999) - (b.avg ?? 999))
     const orphans = rows.filter((r) => !r.mentor_id && !r.is_mentor && !r.is_trybe_leader)
     const out = []
-    if (leader && mentors.length) out.push({ ...mk(`leader-${leader.woman_id}`, leader, mentors), isLeader: true })
+    leaders.forEach((l) => {
+      const mine = mentors.filter((m) => m.mentor_id === l.woman_id)
+      if (mine.length) out.push({ ...mk(`leader-${l.woman_id}`, l, mine), isLeader: true })
+    })
     out.push(...teams)
     if (orphans.length) out.push({ ...mk('none', { first_name: 'No mentor yet' }, orphans), noHead: true })
     return out

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { nudgeLink, reportNudgeLink } from '../lib/nudge'
+import TrybeLeaderAdmin from './TrybeLeaderAdmin'
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August',
   'September','October','November','December']
@@ -43,7 +43,9 @@ export default function MentorsConsole({
   women,          // [{ woman_id, first_name, phone, email, is_mentor, mentor_id, mentor_name }]
   unassigned,     // [{ woman_id, first_name, phone, email, joined, access_status }]
   report,         // { month, mentors: [...], rows: [...] } | null
-  leaderCard,     // imara_admin_leader_card result | null
+  trybe,          // imara_admin_trybe_tab result | null
+  journey,        // imara_admin_journey rows | null
+  onSetLeader,        // (womanId, on)
   onRefreshAll,
   onSetMentor,        // (womanId, isMentor)
   onAssignMentor,     // (womanId, mentorId|null)
@@ -64,14 +66,22 @@ export default function MentorsConsole({
     <div className="stack" style={{ gap: 18 }}>
       <style>{CSS}</style>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-        {[['month', 'This month'], ['mentors', 'Mentors'], ['assign', `Assign teams${unassigned?.length ? ` (${unassigned.length})` : ''}`]].map(([k, label]) => (
+        {[['month', 'This month'], ['trybe', 'Trybe Leader'], ['mentors', 'Mentors'], ['assign', `Assign teams${unassigned?.length ? ` (${unassigned.length})` : ''}`]].map(([k, label]) => (
           <button key={k} className={`btn-sm ${tab === k ? 'btn-primary' : 'btn-soft'}`} onClick={() => setTab(k)}>{label}</button>
         ))}
       </div>
 
       {error && <div className="error-note">{error}</div>}
 
-      {tab === 'month' && <MonthReport report={report} leaderCard={leaderCard} busy={busy} onLoad={(m) => run(() => onLoadReport(m))} />}
+      {tab === 'trybe' && (
+        <TrybeLeaderAdmin
+          data={trybe} journey={journey} busy={busy}
+          onAssign={(id, mid) => onAssignMentor(id, mid)}
+          onSetLeader={(id, on) => onSetLeader(id, on)}
+          onRemoveMentor={(id) => onSetMentor(id, false)}
+        />
+      )}
+      {tab === 'month' && <MonthReport report={report} leaderIds={new Set((trybe?.leaders || []).map((x) => x.id))} busy={busy} onLoad={(m) => run(() => onLoadReport(m))} />}
       {tab === 'mentors' && (
         <MentorsList
           mentors={mentors} women={women} report={report} busy={busy}
@@ -125,30 +135,23 @@ function Bar({ value, total }) {
   )
 }
 
-function MonthReport({ report, leaderCard, busy, onLoad }) {
+function MonthReport({ report, leaderIds, busy, onLoad }) {
   const [openMentor, setOpenMentor] = useState(null)
-  const lc = useMemo(() => {
-    const m = new Map()
-    ;(leaderCard?.overview?.mentors || []).forEach((x) => m.set(x.mentor_id, { ...x }))
-    ;(leaderCard?.journey || []).forEach((j) => { if (m.has(j.woman_id)) m.get(j.woman_id).sm = j.sm; else m.set(j.woman_id, { sm: j.sm }) })
-    return m
-  }, [leaderCard])
-  const hasLc = !!leaderCard?.has_leader
   const month = report?.month || thisMonthIso()
 
   const groups = useMemo(() => {
-    const rows = report?.rows || []
+    const rows = (report?.rows || []).filter((r) => !leaderIds?.has(r.mentor_id))
     const by = new Map()
     rows.forEach((r) => {
       if (!by.has(r.mentor_id)) by.set(r.mentor_id, { id: r.mentor_id, name: r.mentor_name, rows: [] })
       by.get(r.mentor_id).rows.push(r)
     })
     return [...by.values()].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-  }, [report])
+  }, [report, leaderIds])
 
   if (!report) return <p className="small muted">Loading…</p>
 
-  const all = roll(report.rows)
+  const all = roll(report.rows.filter((r) => !leaderIds?.has(r.mentor_id)))
   const opened = groups.find((g) => g.id === openMentor)
 
   return (
@@ -169,7 +172,6 @@ function MonthReport({ report, leaderCard, busy, onLoad }) {
         <div className="empty-state"><p className="small muted">No woman has an assigned mentor yet.</p></div>
       ) : (
         <>
-          {hasLc && <LeaderCard card={leaderCard} />}
           <div className="am-stats">
             <Stat k="Mentees" v={all.n} s={`across ${groups.length} mentor${groups.length === 1 ? '' : 's'}`} />
             <Stat k="Reading" v={all.n ? `${pctOf(all.reading, all.n)}%` : '–'} s={`${all.reading} of ${all.n} read this month`} />
@@ -182,7 +184,7 @@ function MonthReport({ report, leaderCard, busy, onLoad }) {
           <div className="card am-scroll">
             <table className="am-table">
               <thead>
-                <tr><th>Mentor</th><th className="c">Team</th><th>Reading</th><th>Invested</th><th className="c">Circle</th><th className="c">Mastermind</th><th>Recorded</th><th className="c">Renewed</th>{hasLc && <><th className="c">Report</th><th className="c">Journey</th><th /></>}</tr>
+                <tr><th>Mentor</th><th className="c">Team</th><th>Reading</th><th>Invested</th><th className="c">Circle</th><th className="c">Mastermind</th><th>Recorded</th><th className="c">Renewed</th></tr>
               </thead>
               <tbody>
                 {groups.map((g) => {
@@ -190,7 +192,7 @@ function MonthReport({ report, leaderCard, busy, onLoad }) {
                   const behind = t.expected - t.recorded
                   return (
                     <tr key={g.id} className={`clk${openMentor === g.id ? ' sel' : ''}`} onClick={() => setOpenMentor(openMentor === g.id ? null : g.id)}>
-                      <td><b>{g.name}</b>{leaderCard?.leader?.id === g.id && <span className="am-pill n" style={{ marginLeft: 6 }}>Trybe Leader</span>}</td>
+                      <td><b>{g.name}</b></td>
                       <td className="c">{t.n}</td>
                       <td><Bar value={t.reading} total={t.n} /></td>
                       <td><Bar value={t.invested} total={t.n} /></td>
@@ -202,21 +204,6 @@ function MonthReport({ report, leaderCard, busy, onLoad }) {
                         </span>
                       </td>
                       <td className="c">{t.paid} of {t.n}</td>
-                      {hasLc && (() => {
-                        const m = lc.get(g.id)
-                        if (!m) return <><td className="c no">–</td><td className="c no">–</td><td /></>
-                        const missed = num(m.missed_weeks)
-                        const sc = m.sm?.score == null ? null : Number(m.sm.score)
-                        const href = missed > 0 ? reportNudgeLink(m.phone, g.name, missed)
-                          : (sc != null && sc < 40 ? nudgeLink(m.phone, g.name, m.sm?.flags) : '')
-                        return (
-                          <>
-                            <td className="c"><span className={`am-pill ${missed === 0 ? 'g' : missed > 1 ? 'r' : 'o'}`}>{missed === 0 ? 'up to date' : `${missed} missed`}</span></td>
-                            <td className={`c ${tone(sc)}`}>{sc == null ? '–' : `${sc}%`}</td>
-                            <td className="c">{href && <a className="am-wa" href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>WhatsApp</a>}</td>
-                          </>
-                        )
-                      })()}
                     </tr>
                   )
                 })}
@@ -226,46 +213,6 @@ function MonthReport({ report, leaderCard, busy, onLoad }) {
 
           {opened && <MentorDetail g={opened} onClose={() => setOpenMentor(null)} />}
         </>
-      )}
-    </div>
-  )
-}
-
-// The Trybe Leader: her own month and how her mentors are doing.
-function LeaderCard({ card }) {
-  const ms = card.overview?.mentors || []
-  const own = card.leader?.own || {}
-  const upToDate = ms.filter((m) => num(m.missed_weeks) === 0).length
-  const missed2 = ms.filter((m) => num(m.missed_weeks) >= 2).length
-  const meetRec = ms.reduce((n, m) => n + num(m.att?.meeting_recorded), 0)
-  const meetPres = ms.reduce((n, m) => n + num(m.att?.meeting_present), 0)
-  const meetPct = pctOf(meetPres, meetRec)
-  const scores = (card.journey || []).map((j) => j.sm?.score).filter((x) => x != null).map(Number)
-  const jAvg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null
-  const tile = (k, v, warn) => (
-    <div className="am-lt"><span>{k}</span><b style={warn ? { color: '#F5A58B' } : undefined}>{v}</b></div>
-  )
-  return (
-    <div className="am-leader">
-      <div className="row-between" style={{ flexWrap: 'wrap', gap: 10, alignItems: 'flex-start' }}>
-        <div>
-          <span className="am-lead-eb">TRYBE LEADER</span>
-          <b className="am-lead-name">{card.leader?.first_name}</b>
-          <small>{ms.length} mentor{ms.length === 1 ? '' : 's'} report to her{card.leader?.meeting_weekday != null ? ` · Trybe meeting ${WEEKDAYS[card.leader.meeting_weekday]}s` : ''}</small>
-        </div>
-        <div className="am-lead-own">
-          Her own month: reading {num(own.reading_days)} day{num(own.reading_days) === 1 ? '' : 's'} · invested {own.invested ? 'yes' : 'not yet'} · Circle {num(own.classes_came)}/{num(own.classes_held)}
-        </div>
-      </div>
-      {card.overview ? (
-        <div className="am-lt-grid">
-          {tile('Reports up to date', `${upToDate} of ${ms.length}`)}
-          {tile('Trybe meeting', meetPct == null ? '–' : `${meetPct}%`)}
-          {tile("Mentors' Journey avg", jAvg == null ? '–' : `${jAvg}%`)}
-          {tile('Missed 2+ reports', missed2, missed2 > 0)}
-        </div>
-      ) : (
-        <p className="tiny" style={{ marginTop: 10, color: '#E8B9A0' }}>Her mentor numbers can't load right now{card.error ? ` (${card.error})` : ''}.</p>
       )}
     </div>
   )
@@ -550,6 +497,8 @@ const CSS = `
 .am-lt{background:#6b1a21;border-radius:10px;padding:10px 12px}
 .am-lt span{display:block;font-size:11px;color:#E8B9A0}
 .am-lt b{font-size:20px;font-weight:500}
+.am-box{background:var(--surface-2);border-radius:10px;padding:9px 11px}
+.am-mini{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:6px}
 .am-wa{font-size:11px;font-weight:700;color:var(--clay);text-decoration:none;border:1px solid var(--clay);border-radius:99px;padding:3px 9px;white-space:nowrap}
 @media(max-width:700px){.am-lt-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .am-open{font-size:12px;font-weight:600;color:var(--clay)}
