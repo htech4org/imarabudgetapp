@@ -27,6 +27,7 @@ export default function OrgTree({ password }) {
   const [moveTo, setMoveTo] = useState('')
   const [editName, setEditName] = useState('')
   const [linkTo, setLinkTo] = useState('')
+  const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth >= 900 ? 'chart' : 'list'))
 
   const load = async () => {
     try { setData(await rpc('imara_admin_org_tree', { p_admin_password: password })) }
@@ -62,6 +63,38 @@ export default function OrgTree({ password }) {
   const counts = [1, 2, 3, 4].map((l) => nodes.filter((n) => n.level === l).length)
   const plan = [1, 2, 10, 50]
 
+  const strip = (n) => {
+    const sibsForMove = nodes.filter((x) => x.level === n.level - 1 && x.id !== n.parent_id && kids(x.id).length < 5)
+    return (
+          <div className="ot-strip">
+        {n.level > 1 && (
+          <span className="ot-grp">
+            <select className="input" value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
+              <option value="">Move to…</option>
+              {sibsForMove.map((x) => <option key={x.id} value={x.id}>{x.name} ({kids(x.id).length} of 5)</option>)}
+            </select>
+            <button className="btn-sm btn-soft" disabled={busy || !moveTo} onClick={() => run(() => rpc('imara_admin_org_move', { p_admin_password: password, p_node_id: n.id, p_new_parent_id: moveTo }), `${n.name} moved.`)}>Move</button>
+          </span>
+        )}
+        <span className="ot-grp">
+          <input className="input" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
+          <button className="btn-sm btn-soft" disabled={busy || !editName.trim()} onClick={() => run(() => rpc('imara_admin_org_edit', { p_admin_password: password, p_node_id: n.id, p_name: editName, p_woman_id: n.woman_id }), 'Name saved.')}>Rename</button>
+        </span>
+        <span className="ot-grp">
+          <select className="input" value={linkTo} onChange={(e) => setLinkTo(e.target.value)}>
+            <option value="">{n.woman_id ? 'Link a different account…' : 'Link to a member account…'}</option>
+            {(data?.available || []).map((a) => <option key={a.woman_id} value={a.woman_id}>{a.first_name}</option>)}
+          </select>
+          <button className="btn-sm btn-soft" disabled={busy || !linkTo} onClick={() => run(() => rpc('imara_admin_org_edit', { p_admin_password: password, p_node_id: n.id, p_name: null, p_woman_id: linkTo }), 'Linked.')}>Link</button>
+        </span>
+        <button className="btn-link" style={{ color: 'var(--wine)' }} disabled={busy}
+          onClick={() => window.confirm(`Take ${n.name} out of the tree? She keeps her role and stays a member.`) && run(() => rpc('imara_admin_org_remove', { p_admin_password: password, p_node_id: n.id }), `${n.name} taken out of the tree.`)}>
+          Remove from tree
+        </button>
+      </div>
+    )
+  }
+
   const NodeRow = ({ n, depth }) => {
     const L = LEVELS[n.level]
     const ch = kids(n.id)
@@ -71,7 +104,6 @@ export default function OrgTree({ password }) {
     const t = tone(roll)
     const lowN = desc.filter((d) => num(d.score) != null && num(d.score) < LOW).length + (n.level === 4 && num(n.score) != null && num(n.score) < LOW ? 1 : 0)
     const full = n.level < 4 && ch.length >= 5
-    const sibsForMove = nodes.filter((x) => x.level === n.level - 1 && x.id !== n.parent_id && kids(x.id).length < 5)
     return (
       <div>
         <div className="ot-row" onClick={() => setOpen({ ...open, [n.id]: !isOpen })}>
@@ -84,34 +116,7 @@ export default function OrgTree({ password }) {
           <button className="ot-act" onClick={(e) => { e.stopPropagation(); setActing(acting === n.id ? null : n.id); setMoveTo(''); setEditName(n.name); setLinkTo('') }}>⋯</button>
           {n.level < 4 && <span className="ot-sl">{isOpen ? '▾' : '▸'}</span>}
         </div>
-        {acting === n.id && (
-          <div className="ot-strip">
-            {n.level > 1 && (
-              <span className="ot-grp">
-                <select className="input" value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
-                  <option value="">Move to…</option>
-                  {sibsForMove.map((x) => <option key={x.id} value={x.id}>{x.name} ({kids(x.id).length} of 5)</option>)}
-                </select>
-                <button className="btn-sm btn-soft" disabled={busy || !moveTo} onClick={() => run(() => rpc('imara_admin_org_move', { p_admin_password: password, p_node_id: n.id, p_new_parent_id: moveTo }), `${n.name} moved.`)}>Move</button>
-              </span>
-            )}
-            <span className="ot-grp">
-              <input className="input" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
-              <button className="btn-sm btn-soft" disabled={busy || !editName.trim()} onClick={() => run(() => rpc('imara_admin_org_edit', { p_admin_password: password, p_node_id: n.id, p_name: editName, p_woman_id: n.woman_id }), 'Name saved.')}>Rename</button>
-            </span>
-            <span className="ot-grp">
-              <select className="input" value={linkTo} onChange={(e) => setLinkTo(e.target.value)}>
-                <option value="">{n.woman_id ? 'Link a different account…' : 'Link to a member account…'}</option>
-                {(data?.available || []).map((a) => <option key={a.woman_id} value={a.woman_id}>{a.first_name}</option>)}
-              </select>
-              <button className="btn-sm btn-soft" disabled={busy || !linkTo} onClick={() => run(() => rpc('imara_admin_org_edit', { p_admin_password: password, p_node_id: n.id, p_name: null, p_woman_id: linkTo }), 'Linked.')}>Link</button>
-            </span>
-            <button className="btn-link" style={{ color: 'var(--wine)' }} disabled={busy}
-              onClick={() => window.confirm(`Take ${n.name} out of the tree? She keeps her role and stays a member.`) && run(() => rpc('imara_admin_org_remove', { p_admin_password: password, p_node_id: n.id }), `${n.name} taken out of the tree.`)}>
-              Remove from tree
-            </button>
-          </div>
-        )}
+        {acting === n.id && strip(n)}
         {n.level < 4 && isOpen && (
           <div className="ot-kids">
             {ch.map((c) => <Fragment key={c.id}>{NodeRow({ n: c, depth: depth + 1 })}</Fragment>)}
@@ -126,6 +131,62 @@ export default function OrgTree({ password }) {
     )
   }
 
+
+  // ---------- chart view (laptop) ----------
+  const sc = (n) => {
+    if (n.level === 4) return num(n.score)
+    return avg(below(n.id))
+  }
+  const ChartBox = (n) => {
+    const L = LEVELS[n.level]
+    const roll = sc(n)
+    const t = tone(roll)
+    const sel = acting === n.id
+    const ch = kids(n.id)
+    return (
+      <div className={`oc-box l${n.level}${sel ? ' sel' : ''}`} onClick={() => { setActing(sel ? null : n.id); setMoveTo(''); setEditName(n.name); setLinkTo('') }}>
+        <b>{n.name}</b>
+        <small>{L.label}</small>{n.level < 4 && <small>{ch.length} of 5</small>}
+        {!n.woman_id && <small className="oc-no">name only</small>}
+        {roll != null && <span className="oc-sc" style={{ background: t.bg, color: t.fg }}>{roll}%</span>}
+      </div>
+    )
+  }
+  const MentorChip = (m) => {
+    const sv = num(m.score)
+    const cls = sv == null ? '' : sv >= 70 ? 'g' : sv >= LOW ? 'a' : 'r'
+    return (
+      <div key={m.id} className={`oc-m ${cls}${acting === m.id ? ' sel' : ''}`} onClick={() => { setActing(acting === m.id ? null : m.id); setMoveTo(''); setEditName(m.name); setLinkTo('') }}>
+        <b>{m.name}</b>{sv != null ? `${sv}%` : m.woman_id ? '–' : 'name only'}
+      </div>
+    )
+  }
+  const Plus = (level, parent, parentName, label) => (
+    <div className="oc-plus" onClick={() => { setAdding({ parent, level, parentName }); setQ(''); setNameOnly('') }}>{label}</div>
+  )
+  const ChartNode = (n) => {
+    const ch = n.level === 1 ? [...kids(n.id)].sort((a, b) => a.name.localeCompare(b.name)) : kids(n.id)
+    return (
+      <li key={n.id}>
+        {ChartBox(n)}
+        {n.level === 3 ? (
+          <div className="oc-stack">
+            <div className="oc-vl" />
+            {ch.map(MentorChip)}
+            {ch.length < 5 && Array.from({ length: 5 - ch.length }).map((_, i) => <Fragment key={`e${i}`}>{Plus(4, n.id, n.name, '+')}</Fragment>)}
+          </div>
+        ) : n.level < 3 ? (
+          <ul>
+            {ch.map(ChartNode)}
+            {n.level > 1 && ch.length < 5 && <li key="plus">{Plus(n.level + 1, n.id, n.name, `+ ${CHILD[n.level]}`)}</li>}
+          </ul>
+        ) : null}
+      </li>
+    )
+  }
+  const sortedRoots = roots
+  const selNode = acting ? nodes.find((x) => x.id === acting) : null
+
   if (!data) return <div className="panel">{error ? <div className="error-note">{error}</div> : <p className="small muted">Loading…</p>}</div>
 
   const list = (data.available || []).filter((a) => a.first_name.toLowerCase().includes(q.trim().toLowerCase()))
@@ -137,9 +198,16 @@ export default function OrgTree({ password }) {
       <div className="panel">
         <div className="row-between" style={{ flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           <span className="small" style={{ fontWeight: 700 }}>December structure · proposed</span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn-sm btn-soft" onClick={() => setOpen(Object.fromEntries(nodes.map((n) => [n.id, true])))}>Expand all</button>
-            <button className="btn-sm btn-soft" onClick={() => setOpen(Object.fromEntries(nodes.map((n) => [n.id, false])))}>Collapse all</button>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button className={`btn-sm ${view === 'chart' ? 'btn-primary' : 'btn-soft'}`} onClick={() => setView('chart')}>Chart</button>
+            <button className={`btn-sm ${view === 'list' ? 'btn-primary' : 'btn-soft'}`} onClick={() => setView('list')}>List</button>
+            {view === 'chart' && roots[0] && kids(roots[0].id).length < 5 && (
+              <button className="btn-sm btn-soft" onClick={() => { setAdding({ parent: roots[0].id, level: 2, parentName: roots[0].name }); setQ(''); setNameOnly('') }}>+ Council leader</button>
+            )}
+            {view === 'list' && <>
+              <button className="btn-sm btn-soft" onClick={() => setOpen(Object.fromEntries(nodes.map((n) => [n.id, true])))}>Expand all</button>
+              <button className="btn-sm btn-soft" onClick={() => setOpen(Object.fromEntries(nodes.map((n) => [n.id, false])))}>Collapse all</button>
+            </>}
           </div>
         </div>
         <p className="tiny muted" style={{ margin: '6px 0 10px' }}>
@@ -152,7 +220,26 @@ export default function OrgTree({ password }) {
         </div>
         {error && <div className="error-note" style={{ marginTop: 10 }}>{error}</div>}
         {note && <p className="small" style={{ color: '#1f7a55', marginTop: 10 }}>{note}</p>}
-        <div style={{ marginTop: 12 }}>
+        {view === 'chart' && (
+          <>
+            <div className="oc-wrap">
+              <ul className="oc-tree">
+                {sortedRoots.map(ChartNode)}
+              </ul>
+              {showRegional && Plus(1, null, 'the top', '+ regional leader')}
+            </div>
+            {selNode && (
+              <div className="oc-sel">
+                <div className="row-between" style={{ flexWrap: 'wrap', gap: 6 }}>
+                  <b className="small">{selNode.name} · {LEVELS[selNode.level].label}</b>
+                  <button className="btn-link" onClick={() => setActing(null)}>Close</button>
+                </div>
+                {strip(selNode)}
+              </div>
+            )}
+          </>
+        )}
+        <div style={{ marginTop: 12, display: view === 'list' ? 'block' : 'none' }}>
           {roots.map((n) => <Fragment key={n.id}>{NodeRow({ n, depth: 0 })}</Fragment>)}
           {showRegional && (
             <div className="ot-empty" onClick={() => { setAdding({ parent: null, level: 1, parentName: 'the top' }); setQ(''); setNameOnly('') }}>
@@ -194,6 +281,39 @@ export default function OrgTree({ password }) {
 }
 
 const CSS = `
+.oc-wrap{overflow-x:auto;padding:10px 0 14px}
+.oc-tree,.oc-tree ul{display:flex;justify-content:center;padding:0;margin:0;position:relative}
+.oc-tree{min-width:max-content;margin:0 auto}
+.oc-tree ul{padding-top:16px}
+.oc-tree li{list-style:none;text-align:center;position:relative;padding:16px 3px 0;display:flex;flex-direction:column;align-items:center}
+.oc-tree>li{padding-top:0}
+.oc-tree li::before,.oc-tree li::after{content:'';position:absolute;top:0;right:50%;width:50%;height:16px;border-top:1px solid var(--line-strong,#c9a89a)}
+.oc-tree li::after{right:auto;left:50%;border-left:1px solid var(--line-strong,#c9a89a)}
+.oc-tree>li::before,.oc-tree>li::after{display:none}
+.oc-tree li:only-child::before,.oc-tree li:only-child::after{display:none}
+.oc-tree li:only-child{padding-top:16px}
+.oc-tree li:first-child::before,.oc-tree li:last-child::after{border:0 none}
+.oc-tree li:last-child::before{border-right:1px solid var(--line-strong,#c9a89a);border-radius:0 6px 0 0}
+.oc-tree li:first-child::after{border-radius:6px 0 0 0}
+.oc-tree ul::before{content:'';position:absolute;top:0;left:50%;border-left:1px solid var(--line-strong,#c9a89a);height:16px}
+.oc-box{width:96px;box-sizing:border-box;padding:7px 4px;border-radius:12px;cursor:pointer;border:1.5px solid transparent;display:flex;flex-direction:column;gap:2px;align-items:center}
+.oc-box b{font-size:12px;line-height:1.2}
+.oc-box small{font-size:10.5px;opacity:.8;line-height:1.25}
+.oc-no{font-style:italic}
+.oc-box.l1{background:#4C050B;color:#FFE2CC;width:150px}
+.oc-box.l2{background:#BE512A;color:#fff;width:136px}
+.oc-box.l3{background:#FAEEDA;color:#633806}
+.oc-box.sel,.oc-m.sel{border-color:var(--gold,#DD8E0D);box-shadow:0 0 0 2px rgba(221,142,13,.25)}
+.oc-sc{font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:99px;margin-top:2px}
+.oc-stack{display:flex;flex-direction:column;gap:5px;margin-top:0;width:96px;align-items:stretch}
+.oc-vl{width:1px;height:10px;background:var(--line-strong,#c9a89a);margin:0 auto}
+.oc-m{background:#fff;border:1px solid var(--line);border-left:4px solid #bbb;border-radius:8px;padding:4px 3px;font-size:11px;cursor:pointer;text-align:center}
+.oc-m b{display:block;font-size:11.5px;font-weight:600}
+.oc-m.g{border-left-color:#59BA8E}.oc-m.a{border-left-color:#F2C46B}.oc-m.r{border-left-color:#E86C7E}
+.oc-plus{border:1.5px dashed var(--line);border-radius:8px;padding:5px 8px;font-size:11.5px;color:var(--ink-soft,#8a6a6a);cursor:pointer;text-align:center;white-space:nowrap}
+.oc-plus:hover{background:var(--peach)}
+.oc-sel{border:1.5px solid var(--gold,#DD8E0D);border-radius:14px;padding:12px 14px;margin-top:10px;background:var(--cream,#fff)}
+
 .ot-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 11px;border:1px solid var(--line);border-radius:12px;cursor:pointer;background:var(--cream, #fff)}
 .ot-row:hover{border-color:var(--clay)}
 .ot-lv{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:8px;font-weight:700;white-space:nowrap}
