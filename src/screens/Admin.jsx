@@ -5,6 +5,7 @@ import { ARCHETYPES } from '../lib/constants'
 import { money, moneyShort, pct, shortDate } from '../lib/format'
 import PasswordInput from '../components/PasswordInput'
 import { nudgeLink } from '../lib/nudge'
+import OrgTree from './OrgTree'
 import EntryList from '../components/EntryList'
 import Leaderboard from '../components/Leaderboard'
 import ReadingLeaderboard from '../components/ReadingLeaderboard'
@@ -123,7 +124,7 @@ function Console({ data, password, onRefresh, busy, onLock }) {
         </div>
         <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: 6 }}>
           <div className="adm-tabs">
-            {[['budget', 'Budget'], ['reading', 'Book Reading'], ['mentors', 'Mentors'], ['attendance', 'Attendance'], ['quizzes', 'Quizzes'], ['recruiters', 'Recruiters'], ['mirror', 'Mirror'], ['journey', 'Journey'], ['access', 'Access']].map(([k, label]) => (
+            {[['budget', 'Budget'], ['reading', 'Book Reading'], ['mentors', 'Mentors'], ['attendance', 'Attendance'], ['quizzes', 'Quizzes'], ['recruiters', 'Recruiters'], ['mirror', 'Mirror'], ['journey', 'Journey'], ['structure', 'Structure'], ['access', 'Access']].map(([k, label]) => (
               <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>
             ))}
           </div>
@@ -144,6 +145,8 @@ function Console({ data, password, onRefresh, busy, onLock }) {
         <MirrorTab password={password} />
       ) : tab === 'journey' ? (
         <JourneyAdminTab password={password} />
+      ) : tab === 'structure' ? (
+        <OrgTree password={password} />
       ) : tab === 'access' ? (
         <AccessTab password={password} />
       ) : (
