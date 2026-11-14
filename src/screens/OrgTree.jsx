@@ -11,6 +11,16 @@ const LEVELS = {
 }
 const CHILD = { 1: 'council leader', 2: 'Trybe Leader', 3: 'mentor' }
 const LOW = 40
+// match a member by nickname/name or by phone number (any format: 0803…, +234 803…)
+const digits = (v) => String(v || '').replace(/\D/g, '').replace(/^(234|0)/, '')
+const matchWoman = (a, q) => {
+  const t = String(q || '').trim().toLowerCase()
+  if (!t) return true
+  if (String(a.first_name || '').toLowerCase().includes(t)) return true
+  const d = digits(t)
+  return d.length >= 3 && digits(a.phone).includes(d)
+}
+const phoneTail = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 4 ? `…${d.slice(-4)}` : '' }
 const num = (v) => (v == null ? null : Number(v))
 const tone = (s) => (s == null ? { bg: 'var(--peach)', fg: 'var(--ink-soft, #7a5a5a)' } : s >= 70 ? { bg: '#DDF3E8', fg: '#1f7a55' } : s >= LOW ? { bg: '#FFF0CC', fg: '#8a5a00' } : { bg: '#FFD9DF', fg: 'var(--wine)' })
 
@@ -27,6 +37,7 @@ export default function OrgTree({ password }) {
   const [moveTo, setMoveTo] = useState('')
   const [editName, setEditName] = useState('')
   const [linkTo, setLinkTo] = useState('')
+  const [linkQ, setLinkQ] = useState('')
   const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth >= 900 ? 'chart' : 'list'))
 
   const load = async () => {
@@ -80,12 +91,19 @@ export default function OrgTree({ password }) {
           <input className="input" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
           <button className="btn-sm btn-soft" disabled={busy || !editName.trim()} onClick={() => run(() => rpc('imara_admin_org_edit', { p_admin_password: password, p_node_id: n.id, p_name: editName, p_woman_id: n.woman_id }), 'Name saved.')}>Rename</button>
         </span>
-        <span className="ot-grp">
-          <select className="input" value={linkTo} onChange={(e) => setLinkTo(e.target.value)}>
-            <option value="">{n.woman_id ? 'Link a different account…' : 'Link to a member account…'}</option>
-            {(data?.available || []).map((a) => <option key={a.woman_id} value={a.woman_id}>{a.first_name}</option>)}
-          </select>
-          <button className="btn-sm btn-soft" disabled={busy || !linkTo} onClick={() => run(() => rpc('imara_admin_org_edit', { p_admin_password: password, p_node_id: n.id, p_name: null, p_woman_id: linkTo }), 'Linked.')}>Link</button>
+        <span className="ot-grp" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+          <input className="input" value={linkQ} onChange={(e) => setLinkQ(e.target.value)} placeholder={n.woman_id ? 'Link a different account: name or phone' : 'Link an account: name or phone'} style={{ minWidth: 230 }} />
+          {linkQ.trim().length >= 2 && (
+            <span style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 330 }}>
+              {(data?.available || []).filter((a) => matchWoman(a, linkQ)).slice(0, 6).map((a) => (
+                <span key={a.woman_id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5 }}>
+                  <b style={{ flex: 1 }}>{a.first_name} <span className="tiny muted" style={{ fontWeight: 400 }}>{phoneTail(a.phone)}</span></b>
+                  <button className="btn-sm btn-soft" disabled={busy} onClick={() => run(async () => { await rpc('imara_admin_org_edit', { p_admin_password: password, p_node_id: n.id, p_name: null, p_woman_id: a.woman_id }); setLinkQ('') }, `${n.name} linked to ${a.first_name}.`)}>Link</button>
+                </span>
+              ))}
+              {(data?.available || []).filter((a) => matchWoman(a, linkQ)).length === 0 && <span className="tiny muted">No paid member matches.</span>}
+            </span>
+          )}
         </span>
         <button className="btn-link" style={{ color: 'var(--wine)' }} disabled={busy}
           onClick={() => window.confirm(`Take ${n.name} out of the tree? She keeps her role and stays a member.`) && run(() => rpc('imara_admin_org_remove', { p_admin_password: password, p_node_id: n.id }), `${n.name} taken out of the tree.`)}>
@@ -116,7 +134,7 @@ export default function OrgTree({ password }) {
           {n.woman_id && <span className="ot-sc" style={{ background: t.bg, color: t.fg }}>own {own == null ? '–' : `${own}%`}</span>}
           {n.level < 4 && <span className="ot-sc" style={{ background: team == null ? 'transparent' : tt.bg, color: team == null ? 'inherit' : tt.fg }}>team {team == null ? '–' : `${team}%`}</span>}
           {lowN > 0 && <span className="ot-sc" style={{ background: '#FFD9DF', color: 'var(--wine)' }}>{lowN} below {LOW}% under her</span>}
-          <button className="ot-act" onClick={(e) => { e.stopPropagation(); setActing(acting === n.id ? null : n.id); setMoveTo(''); setEditName(n.name); setLinkTo('') }}>⋯</button>
+          <button className="ot-act" onClick={(e) => { e.stopPropagation(); setActing(acting === n.id ? null : n.id); setMoveTo(''); setEditName(n.name); setLinkTo(''); setLinkQ('') }}>⋯</button>
           {n.level < 4 && <span className="ot-sl">{isOpen ? '▾' : '▸'}</span>}
         </div>
         {acting === n.id && strip(n)}
@@ -145,7 +163,7 @@ export default function OrgTree({ password }) {
     const sel = acting === n.id
     const ch = kids(n.id)
     return (
-      <div className={`oc-box l${n.level}${sel ? ' sel' : ''}`} onClick={() => { setActing(sel ? null : n.id); setMoveTo(''); setEditName(n.name); setLinkTo('') }}>
+      <div className={`oc-box l${n.level}${sel ? ' sel' : ''}`} onClick={() => { setActing(sel ? null : n.id); setMoveTo(''); setEditName(n.name); setLinkTo(''); setLinkQ('') }}>
         <b>{n.name}</b>
         <small>{L.label}</small>
         {n.level < 4 && <small>{ch.length} of 5</small>}
@@ -160,7 +178,7 @@ export default function OrgTree({ password }) {
     const sv = num(m.score)
     const cls = sv == null ? '' : sv >= 70 ? 'g' : sv >= LOW ? 'a' : 'r'
     return (
-      <div key={m.id} className={`oc-m ${cls}${acting === m.id ? ' sel' : ''}`} onClick={() => { setActing(acting === m.id ? null : m.id); setMoveTo(''); setEditName(m.name); setLinkTo('') }}>
+      <div key={m.id} className={`oc-m ${cls}${acting === m.id ? ' sel' : ''}`} onClick={() => { setActing(acting === m.id ? null : m.id); setMoveTo(''); setEditName(m.name); setLinkTo(''); setLinkQ('') }}>
         <b>{m.name}</b>{sv != null ? `${sv}%` : m.woman_id ? '–' : 'name only'}
       </div>
     )
@@ -193,7 +211,7 @@ export default function OrgTree({ password }) {
 
   if (!data) return <div className="panel">{error ? <div className="error-note">{error}</div> : <p className="small muted">Loading…</p>}</div>
 
-  const list = (data.available || []).filter((a) => a.first_name.toLowerCase().includes(q.trim().toLowerCase()))
+  const list = (data.available || []).filter((a) => matchWoman(a, q))
   const showRegional = roots.length === 0
 
   return (
@@ -260,13 +278,13 @@ export default function OrgTree({ password }) {
             <b className="small">Add a {adding.level === 3 ? 'Trybe Leader' : LEVELS[adding.level].label.toLowerCase()} under {adding.parentName}</b>
             <button className="btn-link" onClick={() => setAdding(null)}>Close</button>
           </div>
-          <input className="input" style={{ margin: '10px 0' }} placeholder="Search paid members by name…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input" style={{ margin: '10px 0' }} placeholder="Search by name, nickname or phone number…" value={q} onChange={(e) => setQ(e.target.value)} />
           <p className="tiny muted" style={{ marginBottom: 4 }}>Paid members not yet in the tree · {data.available.length}</p>
           <div style={{ maxHeight: 280, overflowY: 'auto' }}>
             {list.length === 0 && <p className="small muted" style={{ padding: '8px 0' }}>No one matches.</p>}
             {list.map((a) => (
               <div key={a.woman_id} className="ot-pick">
-                <b style={{ flex: 1 }}>{a.first_name}</b>
+                <b style={{ flex: 1 }}>{a.first_name} <span className="tiny muted" style={{ fontWeight: 400 }}>{a.phone || ''}</span></b>
                 <span className="tiny muted">{a.is_trybe_leader ? 'Trybe Leader today' : a.is_mentor ? `mentor today · team of ${a.team_size}` : ''}</span>
                 <button className="btn-sm btn-soft" disabled={busy} onClick={() => add(adding.level, adding.parent, a.woman_id, null, a.first_name)}>Add</button>
               </div>
