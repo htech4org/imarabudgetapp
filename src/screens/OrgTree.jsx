@@ -100,9 +100,11 @@ export default function OrgTree({ password }) {
     const ch = kids(n.id)
     const isOpen = open[n.id] ?? depth < 2
     const desc = below(n.id)
-    const roll = n.level === 4 ? num(n.score) : avg(desc)
-    const t = tone(roll)
-    const lowN = desc.filter((d) => num(d.score) != null && num(d.score) < LOW).length + (n.level === 4 && num(n.score) != null && num(n.score) < LOW ? 1 : 0)
+    const own = num(n.score)
+    const team = n.level < 4 ? avg(desc) : null
+    const t = tone(own)
+    const tt = tone(team)
+    const lowN = desc.filter((d) => num(d.score) != null && num(d.score) < LOW).length
     const full = n.level < 4 && ch.length >= 5
     return (
       <div>
@@ -111,8 +113,9 @@ export default function OrgTree({ password }) {
           <b className="ot-nm">{n.name}{!n.woman_id && <i className="ot-no" title="Not linked to a member account"> · name only</i>}</b>
           {n.level < 4 && <span className="ot-sl">{ch.length} of 5</span>}
           {n.level === 4 && n.team_size != null && <span className="ot-sl">team of {n.team_size}</span>}
-          {roll != null && <span className="ot-sc" style={{ background: t.bg, color: t.fg }}>{roll}%</span>}
-          {lowN > 0 && <span className="ot-sc" style={{ background: '#FFD9DF', color: 'var(--wine)' }}>{lowN} below {LOW}%</span>}
+          {n.woman_id && <span className="ot-sc" style={{ background: t.bg, color: t.fg }}>own {own == null ? '–' : `${own}%`}</span>}
+          {n.level < 4 && <span className="ot-sc" style={{ background: team == null ? 'transparent' : tt.bg, color: team == null ? 'inherit' : tt.fg }}>team {team == null ? '–' : `${team}%`}</span>}
+          {lowN > 0 && <span className="ot-sc" style={{ background: '#FFD9DF', color: 'var(--wine)' }}>{lowN} below {LOW}% under her</span>}
           <button className="ot-act" onClick={(e) => { e.stopPropagation(); setActing(acting === n.id ? null : n.id); setMoveTo(''); setEditName(n.name); setLinkTo('') }}>⋯</button>
           {n.level < 4 && <span className="ot-sl">{isOpen ? '▾' : '▸'}</span>}
         </div>
@@ -133,22 +136,23 @@ export default function OrgTree({ password }) {
 
 
   // ---------- chart view (laptop) ----------
-  const sc = (n) => {
-    if (n.level === 4) return num(n.score)
-    return avg(below(n.id))
-  }
   const ChartBox = (n) => {
     const L = LEVELS[n.level]
-    const roll = sc(n)
-    const t = tone(roll)
+    const own = num(n.score)
+    const team = n.level < 4 ? avg(below(n.id)) : null
+    const to = tone(own)
+    const tt = tone(team)
     const sel = acting === n.id
     const ch = kids(n.id)
     return (
       <div className={`oc-box l${n.level}${sel ? ' sel' : ''}`} onClick={() => { setActing(sel ? null : n.id); setMoveTo(''); setEditName(n.name); setLinkTo('') }}>
         <b>{n.name}</b>
-        <small>{L.label}</small>{n.level < 4 && <small>{ch.length} of 5</small>}
-        {!n.woman_id && <small className="oc-no">name only</small>}
-        {roll != null && <span className="oc-sc" style={{ background: t.bg, color: t.fg }}>{roll}%</span>}
+        <small>{L.label}</small>
+        {n.level < 4 && <small>{ch.length} of 5</small>}
+        {!n.woman_id
+          ? <small className="oc-no">not linked</small>
+          : <span className="oc-sc" style={{ background: to.bg, color: to.fg }}>{own == null ? 'own –' : `own ${own}%`}</span>}
+        {n.level < 4 && <span className="oc-tm" style={{ background: team == null ? 'transparent' : tt.bg, color: team == null ? 'inherit' : tt.fg }}>{team == null ? 'team –' : `team ${team}%`}</span>}
       </div>
     )
   }
@@ -228,6 +232,7 @@ export default function OrgTree({ password }) {
               </ul>
               {showRegional && Plus(1, null, 'the top', '+ regional leader')}
             </div>
+            <p className="tiny muted" style={{ marginTop: 4 }}>On each box: <b>own</b> is her own Journey score this week. <b>team</b> is the average of everyone under her in this tree. Name-only places have no score until you link an account.</p>
             {selNode && (
               <div className="oc-sel">
                 <div className="row-between" style={{ flexWrap: 'wrap', gap: 6 }}>
@@ -304,7 +309,8 @@ const CSS = `
 .oc-box.l2{background:#BE512A;color:#fff;width:136px}
 .oc-box.l3{background:#FAEEDA;color:#633806}
 .oc-box.sel,.oc-m.sel{border-color:var(--gold,#DD8E0D);box-shadow:0 0 0 2px rgba(221,142,13,.25)}
-.oc-sc{font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:99px;margin-top:2px}
+.oc-sc{font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:99px;margin-top:3px}
+.oc-tm{font-size:10.5px;font-weight:600;padding:1px 8px;border-radius:99px;margin-top:2px;border:1px dashed rgba(0,0,0,.12)}
 .oc-stack{display:flex;flex-direction:column;gap:5px;margin-top:0;width:96px;align-items:stretch}
 .oc-vl{width:1px;height:10px;background:var(--line-strong,#c9a89a);margin:0 auto}
 .oc-m{background:#fff;border:1px solid var(--line);border-left:4px solid #bbb;border-radius:8px;padding:4px 3px;font-size:11px;cursor:pointer;text-align:center}
