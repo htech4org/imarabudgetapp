@@ -1794,11 +1794,13 @@ const GOOD = 70    // this and above is green
 const DROP = 20    // a fall of this many points from last week is flagged
 
 const jCol = (n) => (n == null ? 'inherit' : n >= GOOD ? 'var(--green)' : n >= LOW ? 'var(--clay)' : 'var(--wine)')
-const cellStyle = (n, picked) => ({
+const cellStyle = (n, picked, partial) => ({
   height: 28, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
   fontSize: 12, fontWeight: n == null ? 400 : 700, cursor: n == null ? 'default' : 'pointer',
-  background: n == null ? 'rgba(128,128,128,.10)' : n >= GOOD ? '#DDF3E8' : n >= LOW ? '#FCEBD3' : '#FFD9DF',
-  color: n == null ? 'rgba(128,128,128,.8)' : n >= GOOD ? '#1f7a55' : n >= LOW ? '#8a5a12' : 'var(--wine)',
+  background: n == null ? 'rgba(128,128,128,.10)' : partial ? 'transparent' : n >= GOOD ? '#DDF3E8' : n >= LOW ? '#FCEBD3' : '#FFD9DF',
+  color: n == null ? 'rgba(128,128,128,.8)' : partial ? 'rgba(90,90,90,.95)' : n >= GOOD ? '#1f7a55' : n >= LOW ? '#8a5a12' : 'var(--wine)',
+  border: partial && n != null ? '1.5px dashed rgba(128,128,128,.55)' : 'none',
+  boxSizing: 'border-box',
   outline: picked ? '2px solid var(--maroon-900, #4C050B)' : 'none',
 })
 const GRID = { display: 'grid', gridTemplateColumns: 'minmax(70px,1fr) repeat(6, 32px) 38px', gap: 4, alignItems: 'center' }
@@ -1807,21 +1809,28 @@ const wkScore = (r, i) => {
   const w = (r.weeks || [])[i]
   return w && w.score != null ? Number(w.score) : null
 }
-const latestIdx = (r, cur) => {
-  for (let i = Math.min(cur, 6) - 1; i >= 0; i--) if (wkScore(r, i) != null) return i
-  return -1
+// A week only counts once it has finished. The week in progress is shown "so far".
+const isDone = (r, i) => ((r.weeks || [])[i] || {}).status === 'done'
+const doneIdx = (r) => {
+  const out = []
+  ;(r.weeks || []).forEach((w, i) => { if (w && w.status === 'done' && w.score != null) out.push(i) })
+  return out
 }
-const isDropping = (r, cur) => {
-  const i = latestIdx(r, cur)
-  if (i < 1) return false
-  const a = wkScore(r, i), b = wkScore(r, i - 1)
-  return a != null && b != null && b - a >= DROP
-}
+const latestIdx = (r) => { const d = doneIdx(r); return d.length ? d[d.length - 1] : -1 }
 const avgOfList = (vals) => {
   const v = vals.filter((x) => x != null)
   return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null
 }
-const rowAvg = (r) => (r.sm?.average == null ? null : Number(r.sm.average))
+// Her score for the last finished week (what we judge her on)
+const basisScore = (r) => { const i = latestIdx(r); return i < 0 ? null : wkScore(r, i) }
+// Her average over finished weeks
+const rowAvg = (r) => avgOfList(doneIdx(r).map((i) => wkScore(r, i)))
+const isDropping = (r) => {
+  const d = doneIdx(r)
+  if (d.length < 2) return false
+  const a = wkScore(r, d[d.length - 1]), b = wkScore(r, d[d.length - 2])
+  return a != null && b != null && b - a >= DROP
+}
 
 function JourneyAdminTab({ password }) {
   const [data, setData] = useState(null)
@@ -1837,10 +1846,12 @@ function JourneyAdminTab({ password }) {
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const rows = data?.rows || []
   const cur = data?.week || 0
-  const scoreOf = (r) => (r.sm?.score == null ? null : Number(r.sm.score))
+  const weekDone = !!rows.length && cur > 0 && rows.some((r) => isDone(r, cur - 1))
+  const scoreOf = (r) => basisScore(r)
+  const sortScore = (r) => basisScore(r) ?? (r.sm?.score == null ? null : Number(r.sm.score))
   const cell = { padding: '9px 8px', borderTop: '1px solid var(--line)' }
-  const byLowest = (a, b) => (scoreOf(a) ?? 999) - (scoreOf(b) ?? 999) || String(a.first_name).localeCompare(b.first_name)
-  const needs = (r) => (scoreOf(r) != null && scoreOf(r) < LOW) || isDropping(r, cur)
+  const byLowest = (a, b) => (sortScore(a) ?? 999) - (sortScore(b) ?? 999) || String(a.first_name).localeCompare(b.first_name)
+  const needs = (r) => (scoreOf(r) != null && scoreOf(r) < LOW) || isDropping(r)
 
   const groups = useMemo(() => {
     const leaders = rows.filter((r) => r.is_trybe_leader)
@@ -1849,7 +1860,7 @@ function JourneyAdminTab({ password }) {
       const list = [...members].sort(byLowest)
       const wkAvg = [0, 1, 2, 3, 4, 5].map((i) => avgOfList(list.map((m) => wkScore(m, i))))
       return {
-        key, head, members: list, wkAvg, avg: avgOfList(list.map(scoreOf)),
+        key, head, members: list, wkAvg, avg: avgOfList(list.map(rowAvg)), last: avgOfList(list.map(scoreOf)),
         low: list.filter((m) => needs(m)).length, ...extra,
       }
     }
@@ -1885,10 +1896,10 @@ function JourneyAdminTab({ password }) {
   const gridRow = (r, opts = {}) => {
     const id = `${opts.scope || ''}${r.woman_id}`
     const picked = pick && pick.id === id
-    const li = latestIdx(r, cur)
+    const li = latestIdx(r)
     const sc = scoreOf(r)
     const wk = picked ? (r.weeks || [])[pick.week] : null
-    const dropping = isDropping(r, cur)
+    const dropping = isDropping(r)
     return (
       <div key={id} style={{ marginBottom: 4 }}>
         <div style={{ ...GRID, background: picked ? 'rgba(128,128,128,.10)' : 'transparent', borderRadius: 8, padding: '2px 0' }}>
@@ -1900,9 +1911,10 @@ function JourneyAdminTab({ password }) {
           </span>
           {[0, 1, 2, 3, 4, 5].map((i) => {
             const n = i < cur ? wkScore(r, i) : null
+            const partial = n != null && !isDone(r, i)
             const isP = picked && pick.week === i
             return (
-              <span key={i} style={cellStyle(n, isP)}
+              <span key={i} style={cellStyle(n, isP, partial)}
                     onClick={() => { if (n != null) setPick(isP ? null : { id, week: i }) }}>
                 {n == null ? '–' : n}
               </span>
@@ -1938,7 +1950,7 @@ function JourneyAdminTab({ password }) {
     <div style={{ ...GRID, marginBottom: 4 }}>
       <span />
       {[1, 2, 3, 4, 5, 6].map((w) => (
-        <span key={w} className="tiny muted" style={{ textAlign: 'center', fontWeight: w === cur ? 700 : 400 }}>W{w}</span>
+        <span key={w} className="tiny muted" style={{ textAlign: 'center', fontWeight: w === cur ? 700 : 400 }}>W{w}{w === cur && !weekDone ? '*' : ''}</span>
       ))}
       <span className="tiny muted" style={{ textAlign: 'center' }}>Avg</span>
     </div>
@@ -1948,7 +1960,7 @@ function JourneyAdminTab({ password }) {
       <b style={{ fontSize: 12.5, paddingLeft: 4 }}>{label}</b>
       {[0, 1, 2, 3, 4, 5].map((i) => {
         const n = i < cur ? g.wkAvg[i] : null
-        return <span key={i} style={{ ...cellStyle(n, false), cursor: 'default' }}>{n == null ? '–' : n}</span>
+        return <span key={i} style={{ ...cellStyle(n, false, n != null && i + 1 >= cur && cur > 0 && !weekDone), cursor: 'default' }}>{n == null ? '–' : n}</span>
       })}
       <span style={{ ...cellStyle(g.avg, false), cursor: 'default' }}>{g.avg == null ? '–' : g.avg}</span>
     </div>
@@ -1965,7 +1977,7 @@ function JourneyAdminTab({ password }) {
           </div>
         </div>
         <p className="tiny muted" style={{ margin: '6px 0 12px' }}>
-          Each box is her score for that week. Green is {GOOD} and above, amber is {LOW} to {GOOD - 1}, red is below {LOW}. A red ▼ means she fell {DROP} or more points since last week. Tap a name or a box to see why. Reading, class, quiz, mastermind and investment count 20 points each.
+          Each box is her score for that week. Green is {GOOD} and above, amber is {LOW} to {GOOD - 1}, red is below {LOW}. A red ▼ means she fell {DROP} or more points between her last two finished weeks. * and a dashed box mean the week is still running, so it is shown for information and does not count towards red, ▼ or the average until it ends. Tap a name or a box to see why. Reading, class, quiz, mastermind and investment count 20 points each.
         </p>
         {error && <div className="error-note">{error}</div>}
         {!error && !data && <p className="small muted">Loading…</p>}
@@ -1975,7 +1987,7 @@ function JourneyAdminTab({ password }) {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 520 }}>
               <thead><tr style={{ textAlign: 'left' }}>
-                {['Woman', 'Mentor', 'This week', 'Average', 'Missing', ''].map((h) => (
+                {['Woman', 'Mentor', 'Last full week', 'Average', 'Week so far, missing', ''].map((h) => (
                   <th key={h} className="tiny muted" style={{ padding: '0 8px 8px', textTransform: 'uppercase', letterSpacing: '.09em' }}>{h}</th>
                 ))}
               </tr></thead>
@@ -2017,7 +2029,7 @@ function JourneyAdminTab({ password }) {
                     {g.isLeader ? `${g.head.first_name} · Trybe Leader` : g.noHead ? g.head.first_name : `${g.head.first_name}'s team`}
                   </b>
                   <small style={{ display: 'block', opacity: 0.7 }}>
-                    {g.members.length} {g.isLeader ? 'mentors' : 'women'} · {g.isLeader ? 'mentors' : 'team'} average {g.avg == null ? '–' : `${g.avg}%`}
+                    {g.members.length} {g.isLeader ? 'mentors' : 'women'} · {g.isLeader ? 'mentors' : 'team'} average {g.avg == null ? '–' : `${g.avg}%`} over finished weeks
                   </small>
                 </div>
                 <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99, whiteSpace: 'nowrap', background: g.low > 0 ? '#FFD9DF' : '#DDF3E8', color: g.low > 0 ? 'var(--wine)' : '#1f7a55' }}>
