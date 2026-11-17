@@ -1787,50 +1787,84 @@ function MirrorTab({ password }) {
 }
 
 // ---------------------------------------------------------------------------
-// Journey tab: every paid woman's weekly score
+// Journey tab: every paid woman, every week, under her mentor
 // ---------------------------------------------------------------------------
-const LOW = 40   // below this a woman (or mentor) needs follow-up
+const LOW = 50     // below this a woman (or mentor) is red and needs follow-up
+const GOOD = 70    // this and above is green
+const DROP = 20    // a fall of this many points from last week is flagged
+
+const jCol = (n) => (n == null ? 'inherit' : n >= GOOD ? 'var(--green)' : n >= LOW ? 'var(--clay)' : 'var(--wine)')
+const cellStyle = (n, picked) => ({
+  height: 28, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontSize: 12, fontWeight: n == null ? 400 : 700, cursor: n == null ? 'default' : 'pointer',
+  background: n == null ? 'rgba(128,128,128,.10)' : n >= GOOD ? '#DDF3E8' : n >= LOW ? '#FCEBD3' : '#FFD9DF',
+  color: n == null ? 'rgba(128,128,128,.8)' : n >= GOOD ? '#1f7a55' : n >= LOW ? '#8a5a12' : 'var(--wine)',
+  outline: picked ? '2px solid var(--maroon-900, #4C050B)' : 'none',
+})
+const GRID = { display: 'grid', gridTemplateColumns: 'minmax(70px,1fr) repeat(6, 32px) 38px', gap: 4, alignItems: 'center' }
+
+const wkScore = (r, i) => {
+  const w = (r.weeks || [])[i]
+  return w && w.score != null ? Number(w.score) : null
+}
+const latestIdx = (r, cur) => {
+  for (let i = Math.min(cur, 6) - 1; i >= 0; i--) if (wkScore(r, i) != null) return i
+  return -1
+}
+const isDropping = (r, cur) => {
+  const i = latestIdx(r, cur)
+  if (i < 1) return false
+  const a = wkScore(r, i), b = wkScore(r, i - 1)
+  return a != null && b != null && b - a >= DROP
+}
+const avgOfList = (vals) => {
+  const v = vals.filter((x) => x != null)
+  return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null
+}
+const rowAvg = (r) => (r.sm?.average == null ? null : Number(r.sm.average))
 
 function JourneyAdminTab({ password }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
-  const [view, setView] = useState('team')   // 'team' | 'score'
-  const [open, setOpen] = useState({})
+  const [view, setView] = useState('team')   // 'team' | 'score' | 'follow'
+  const [open, setOpen] = useState({})       // group key -> open?
+  const [pick, setPick] = useState(null)     // { id, week } whose detail is showing
   const load = async () => {
     setError('')
-    try { setData(await rpc('imara_admin_journey', { p_admin_password: password })) }
+    try { setData(await rpc('imara_admin_journey_weeks', { p_admin_password: password })) }
     catch (e) { setError(e.message) }
   }
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const rows = data?.rows || []
-  const cell = { padding: '9px 8px', borderTop: '1px solid var(--line)' }
-  const col = (n) => (n == null ? 'inherit' : n >= 70 ? 'var(--green)' : n >= LOW ? 'var(--clay)' : 'var(--wine)')
+  const cur = data?.week || 0
   const scoreOf = (r) => (r.sm?.score == null ? null : Number(r.sm.score))
-  const avgOf = (list) => {
-    const v = list.map(scoreOf).filter((x) => x != null)
-    return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null
-  }
+  const cell = { padding: '9px 8px', borderTop: '1px solid var(--line)' }
   const byLowest = (a, b) => (scoreOf(a) ?? 999) - (scoreOf(b) ?? 999) || String(a.first_name).localeCompare(b.first_name)
+  const needs = (r) => (scoreOf(r) != null && scoreOf(r) < LOW) || isDropping(r, cur)
 
-  // Groups: the Trybe Leader's mentors first, then each mentor's team, then women with no mentor.
   const groups = useMemo(() => {
     const leaders = rows.filter((r) => r.is_trybe_leader)
     const mentors = rows.filter((r) => r.is_mentor && !r.is_trybe_leader)
-    const mk = (key, head, members) => {
+    const mk = (key, head, members, extra) => {
       const list = [...members].sort(byLowest)
-      return { key, head, members: list, avg: avgOf(list), low: list.filter((r) => scoreOf(r) != null && scoreOf(r) < LOW).length }
+      const wkAvg = [0, 1, 2, 3, 4, 5].map((i) => avgOfList(list.map((m) => wkScore(m, i))))
+      return {
+        key, head, members: list, wkAvg, avg: avgOfList(list.map(scoreOf)),
+        low: list.filter((m) => needs(m)).length, ...extra,
+      }
     }
-    const teams = mentors.map((m) => mk(m.woman_id, m, rows.filter((r) => r.mentor_id === m.woman_id && r.woman_id !== m.woman_id)))
-      .filter((g) => g.members.length > 0)
-      .sort((a, b) => b.low - a.low || (a.avg ?? 999) - (b.avg ?? 999))
-    const orphans = rows.filter((r) => !r.mentor_id && !r.is_mentor && !r.is_trybe_leader)
     const out = []
     leaders.forEach((l) => {
       const mine = mentors.filter((m) => m.mentor_id === l.woman_id)
-      if (mine.length) out.push({ ...mk(`leader-${l.woman_id}`, l, mine), isLeader: true })
+      if (mine.length) out.push(mk(`leader-${l.woman_id}`, l, mine, { isLeader: true }))
     })
+    // each mentor's team: her own row first, then the women she leads
+    const teams = mentors.map((m) => mk(m.woman_id, m, rows.filter((r) => r.mentor_id === m.woman_id && r.woman_id !== m.woman_id), { mentorRow: m }))
+      .filter((g) => g.members.length > 0)
+      .sort((a, b) => b.low - a.low || (a.avg ?? 999) - (b.avg ?? 999))
     out.push(...teams)
-    if (orphans.length) out.push({ ...mk('none', { first_name: 'No mentor yet' }, orphans), noHead: true })
+    const orphans = rows.filter((r) => !r.mentor_id && !r.is_mentor && !r.is_trybe_leader)
+    if (orphans.length) out.push(mk('none', { first_name: 'No mentor yet' }, orphans, { noHead: true }))
     return out
   }, [rows]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1847,23 +1881,95 @@ function JourneyAdminTab({ password }) {
     <button key={k} className={`btn btn-sm ${view === k ? 'btn-primary' : 'btn-soft'}`} onClick={() => setView(k)}>{label}</button>
   )
 
+  // One woman's row in the grid, with her detail underneath when picked.
+  const gridRow = (r, opts = {}) => {
+    const id = `${opts.scope || ''}${r.woman_id}`
+    const picked = pick && pick.id === id
+    const li = latestIdx(r, cur)
+    const sc = scoreOf(r)
+    const wk = picked ? (r.weeks || [])[pick.week] : null
+    const dropping = isDropping(r, cur)
+    return (
+      <div key={id} style={{ marginBottom: 4 }}>
+        <div style={{ ...GRID, background: picked ? 'rgba(128,128,128,.10)' : 'transparent', borderRadius: 8, padding: '2px 0' }}>
+          <span onClick={() => setPick(picked ? null : { id, week: li < 0 ? 0 : li })}
+                style={{ fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingLeft: 4 }}>
+            <b style={{ fontWeight: opts.bold ? 700 : 500 }}>{r.first_name}</b>
+            {opts.tag && <span style={{ opacity: 0.55, fontSize: 11 }}> {opts.tag}</span>}
+            {dropping && <span style={{ color: 'var(--wine)', fontSize: 11 }}> ▼</span>}
+          </span>
+          {[0, 1, 2, 3, 4, 5].map((i) => {
+            const n = i < cur ? wkScore(r, i) : null
+            const isP = picked && pick.week === i
+            return (
+              <span key={i} style={cellStyle(n, isP)}
+                    onClick={() => { if (n != null) setPick(isP ? null : { id, week: i }) }}>
+                {n == null ? '–' : n}
+              </span>
+            )
+          })}
+          <span style={{ ...cellStyle(rowAvg(r), false), cursor: 'default' }}>{rowAvg(r) == null ? '–' : rowAvg(r)}</span>
+        </div>
+        {picked && (
+          <div style={{ background: 'rgba(128,128,128,.10)', borderRadius: 8, padding: '8px 10px', margin: '4px 0 6px', fontSize: 12, lineHeight: 1.7 }}>
+            {wk && wk.score != null ? (
+              <>
+                <b>{r.first_name}, week {wk.week}: {wk.score}%</b>
+                <div style={{ opacity: 0.85 }}>
+                  {(wk.items || []).filter((it) => it.applicable).map((it) => (
+                    <div key={it.key}>{it.label}: {it.detail} <span style={{ opacity: 0.6 }}>({it.points}/{it.max})</span></div>
+                  ))}
+                  {(wk.items || []).filter((it) => !it.applicable).map((it) => (
+                    <div key={it.key} style={{ opacity: 0.6 }}>{it.label}: {it.detail}</div>
+                  ))}
+                </div>
+              </>
+            ) : <span className="muted">No score for this week yet.</span>}
+            {sc != null && sc < LOW && (
+              <div style={{ marginTop: 6 }}>{nudge(r)}</div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const colHead = (
+    <div style={{ ...GRID, marginBottom: 4 }}>
+      <span />
+      {[1, 2, 3, 4, 5, 6].map((w) => (
+        <span key={w} className="tiny muted" style={{ textAlign: 'center', fontWeight: w === cur ? 700 : 400 }}>W{w}</span>
+      ))}
+      <span className="tiny muted" style={{ textAlign: 'center' }}>Avg</span>
+    </div>
+  )
+  const avgRow = (label, g) => (
+    <div style={{ ...GRID, marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid var(--line)' }}>
+      <b style={{ fontSize: 12.5, paddingLeft: 4 }}>{label}</b>
+      {[0, 1, 2, 3, 4, 5].map((i) => {
+        const n = i < cur ? g.wkAvg[i] : null
+        return <span key={i} style={{ ...cellStyle(n, false), cursor: 'default' }}>{n == null ? '–' : n}</span>
+      })}
+      <span style={{ ...cellStyle(g.avg, false), cursor: 'default' }}>{g.avg == null ? '–' : g.avg}</span>
+    </div>
+  )
+
   return (
     <div className="admin">
       <div className="panel">
         <div className="row-between" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <span className="small" style={{ fontWeight: 700 }}>IMARA Journey{data?.week ? ` · week ${data.week}` : ''} · {rows.length} women</span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {seg('team', 'By team')}{seg('score', 'By score')}
+          <span className="small" style={{ fontWeight: 700 }}>IMARA Journey{cur ? ` · week ${cur} of 6` : ''} · {rows.length} women</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {seg('team', 'By team')}{seg('score', 'By score')}{seg('follow', 'Needs follow-up')}
             <button className="btn btn-sm btn-soft" onClick={load}>Refresh</button>
           </div>
         </div>
         <p className="tiny muted" style={{ margin: '6px 0 12px' }}>
-          {view === 'team'
-            ? `Teams that need the most follow-up come first. Below ${LOW}% needs a nudge. Reading, class, quiz, mastermind and investment count 20 points each.`
-            : 'Lowest scores first. Reading, class, quiz, mastermind and investment count 20 points each.'}
+          Each box is her score for that week. Green is {GOOD} and above, amber is {LOW} to {GOOD - 1}, red is below {LOW}. A red ▼ means she fell {DROP} or more points since last week. Tap a name or a box to see why. Reading, class, quiz, mastermind and investment count 20 points each.
         </p>
         {error && <div className="error-note">{error}</div>}
-        {!error && rows.length === 0 && <p className="small muted">Nothing to show yet.</p>}
+        {!error && !data && <p className="small muted">Loading…</p>}
+        {!error && data && rows.length === 0 && <p className="small muted">Nothing to show yet.</p>}
 
         {view === 'score' && rows.length > 0 && (
           <div style={{ overflowX: 'auto' }}>
@@ -1874,12 +1980,12 @@ function JourneyAdminTab({ password }) {
                 ))}
               </tr></thead>
               <tbody>
-                {rows.map((r) => (
+                {[...rows].sort(byLowest).map((r) => (
                   <tr key={r.woman_id}>
                     <td style={cell}><b>{r.first_name}</b></td>
                     <td style={cell}>{r.mentor_name || '—'}</td>
-                    <td style={{ ...cell, color: col(r.sm?.score), fontWeight: 700 }}>{r.sm?.score == null ? '—' : `${r.sm.score}%`}</td>
-                    <td style={cell}>{r.sm?.average == null ? '—' : `${r.sm.average}%`}</td>
+                    <td style={{ ...cell, color: jCol(scoreOf(r)), fontWeight: 700 }}>{scoreOf(r) == null ? '—' : `${scoreOf(r)}%`}</td>
+                    <td style={cell}>{rowAvg(r) == null ? '—' : `${rowAvg(r)}%`}</td>
                     <td style={cell}>{(r.sm?.flags || []).join(', ') || '—'}</td>
                     <td style={cell}>{scoreOf(r) != null && scoreOf(r) < LOW ? nudge(r) : null}</td>
                   </tr>
@@ -1889,46 +1995,43 @@ function JourneyAdminTab({ password }) {
           </div>
         )}
 
+        {view === 'follow' && rows.length > 0 && (
+          <div style={{ marginTop: 4 }}>
+            {rows.filter(needs).length === 0
+              ? <p className="small muted">No one is below {LOW} or dropping. All on track.</p>
+              : (<>
+                  {colHead}
+                  {[...rows].filter(needs).sort(byLowest).map((r) =>
+                    gridRow(r, { scope: 'f-', tag: r.mentor_name ? `(${r.mentor_name})` : '' }))}
+                </>)}
+          </div>
+        )}
+
         {view === 'team' && groups.map((g, gi) => {
           const isOpen = open[g.key] ?? gi === 0
-          const mscore = g.noHead || g.isLeader ? null : scoreOf(g.head)
           return (
-            <div key={g.key} className="card" style={{ marginTop: 12, border: g.low > 0 ? '1.5px solid var(--clay)' : undefined, background: g.isLeader ? 'var(--maroon-900)' : undefined, color: g.isLeader ? 'var(--cream)' : undefined }}>
-              <div onClick={() => setOpen({ ...open, [g.key]: !isOpen })} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', cursor: 'pointer' }}>
+            <div key={g.key} className="card" style={{ marginTop: 12, border: g.low > 0 ? '1.5px solid var(--clay)' : undefined }}>
+              <div onClick={() => setOpen({ ...open, [g.key]: !isOpen })} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', cursor: 'pointer' }}>
                 <div style={{ flex: 1, minWidth: 150 }}>
                   <b style={{ fontSize: 14 }}>
-                    {g.isLeader ? `${g.head.first_name} · Trybe Leader` : g.head.first_name}
-                    <span style={{ fontWeight: 400, opacity: 0.7 }}> · {g.members.length} {g.isLeader ? 'mentors' : 'women'}</span>
+                    {g.isLeader ? `${g.head.first_name} · Trybe Leader` : g.noHead ? g.head.first_name : `${g.head.first_name}'s team`}
                   </b>
-                  {mscore != null && <small style={{ display: 'block', opacity: 0.7 }}>Her own score <b style={{ color: col(mscore) }}>{mscore}%</b></small>}
-                  {g.isLeader && scoreOf(g.head) != null && <small style={{ display: 'block', opacity: 0.8 }}>Her own score {scoreOf(g.head)}%</small>}
+                  <small style={{ display: 'block', opacity: 0.7 }}>
+                    {g.members.length} {g.isLeader ? 'mentors' : 'women'} · {g.isLeader ? 'mentors' : 'team'} average {g.avg == null ? '–' : `${g.avg}%`}
+                  </small>
                 </div>
-                <div style={{ width: 130 }}>
-                  <span style={{ display: 'block', height: 6, borderRadius: 9, background: 'rgba(128,128,128,.25)', overflow: 'hidden' }}>
-                    <i style={{ display: 'block', height: '100%', width: `${g.avg || 0}%`, background: col(g.avg) }} />
-                  </span>
-                  <small style={{ opacity: 0.75 }}>{g.isLeader ? 'Mentors' : 'Team'} avg {g.avg == null ? '–' : `${g.avg}%`}</small>
-                </div>
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99, whiteSpace: 'nowrap', background: g.low > 0 ? '#FFD9DF' : '#DDF3E8', color: g.low > 0 ? 'var(--wine)' : '#1f7a55' }}>{g.low > 0 ? `${g.low} below ${LOW}%` : 'all on track'}</span>
-                {!g.noHead && !g.isLeader && mscore != null && mscore < LOW && nudge(g.head)}
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99, whiteSpace: 'nowrap', background: g.low > 0 ? '#FFD9DF' : '#DDF3E8', color: g.low > 0 ? 'var(--wine)' : '#1f7a55' }}>
+                  {g.low > 0 ? `${g.low} need follow-up` : 'all on track'}
+                </span>
                 <span style={{ opacity: 0.6 }}>{isOpen ? '▲' : '▼'}</span>
               </div>
               {isOpen && (
-                <div style={{ marginTop: 8 }}>
-                  {g.members.map((r) => {
-                    const sc = scoreOf(r)
-                    const low = sc != null && sc < LOW
-                    return (
-                      <div key={r.woman_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: '1px solid var(--line)', fontSize: 12.5, flexWrap: 'wrap' }}>
-                        <b style={{ flex: 1, minWidth: 90 }}>{r.first_name}</b>
-                        <b style={{ width: 44, color: col(sc) }}>{sc == null ? '—' : `${sc}%`}</b>
-                        <span style={{ flex: 2, minWidth: 150, opacity: 0.75 }}>
-                          avg {r.sm?.average == null ? '–' : `${r.sm.average}%`}{(r.sm?.flags || []).length ? ` · missing: ${r.sm.flags.join(', ').toLowerCase()}` : ''}
-                        </span>
-                        {low && nudge(r)}
-                      </div>
-                    )
-                  })}
+                <div style={{ marginTop: 10 }}>
+                  {colHead}
+                  {avgRow(g.isLeader ? 'Mentors average' : 'Team average', g)}
+                  {g.isLeader && gridRow(g.head, { scope: `l-${g.key}-`, bold: true, tag: '(Trybe Leader)' })}
+                  {!g.isLeader && !g.noHead && gridRow(g.mentorRow, { scope: `m-${g.key}-`, bold: true, tag: '(mentor)' })}
+                  {g.members.map((r) => gridRow(r, { scope: `${g.key}-` }))}
                 </div>
               )}
             </div>
