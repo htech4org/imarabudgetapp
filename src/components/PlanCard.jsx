@@ -1,4 +1,8 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
+
+// Our wider vision: this many women building wealth through IMARA.
+const VISION_TARGET = 100000
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -70,8 +74,8 @@ export default function PlanCard({ plan }) {
 
       {c.show && (
         <div className="plan-cnt">
-          <b>{c.women}</b>
-          <span>Imarians have started<br />investing since {MONTHS_LONG[startM]}</span>
+          <b>{Number(c.women).toLocaleString('en-NG')}<em> / {VISION_TARGET.toLocaleString('en-NG')}</em></b>
+          <span>Imarians investing since {MONTHS_LONG[startM]}.<br />Our vision: {VISION_TARGET.toLocaleString('en-NG')} women building wealth.</span>
         </div>
       )}
 
@@ -84,8 +88,11 @@ export default function PlanCard({ plan }) {
 }
 
 function MathsSheet({ onClose }) {
-  return (
+  // Rendered on the page itself, not inside the Home screen: the screen's fade-in
+  // animation would otherwise pin this sheet to the bottom of the page.
+  return createPortal(
     <div role="dialog" aria-modal="true" className="plan-sheet-bg" onClick={onClose}>
+      <style>{CSS}</style>
       <div className="plan-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="plan-sheet-h">the maths behind the plan</div>
         <p>Start with ₦20,000 a month. Every year, add ₦10,000 more. Keep going for 20 years.</p>
@@ -99,7 +106,8 @@ function MathsSheet({ onClose }) {
         </p>
         <button type="button" className="plan-sheet-btn" onClick={onClose}>Close</button>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -126,8 +134,8 @@ export function FreePlanCard({ counter }) {
       <div className="plan-ml"><span>Today</span><span>Goal: ₦100M portfolio</span><span>20 years</span></div>
       {c.show && (
         <div className="plan-cnt">
-          <b>{c.women}</b>
-          <span>Imarians have started<br />investing since September</span>
+          <b>{Number(c.women).toLocaleString('en-NG')}<em> / {VISION_TARGET.toLocaleString('en-NG')}</em></b>
+          <span>Imarians investing since September.<br />Our vision: {VISION_TARGET.toLocaleString('en-NG')} women building wealth.</span>
         </div>
       )}
       <p className="plan-fine">₦100 million is a goal we build toward, not a promise. No returns are guaranteed.</p>
@@ -157,7 +165,8 @@ const CSS = `
 .plan-box b{display:block;font-family:var(--font-display);font-size:28px;font-weight:600;color:#FBF1E6;line-height:1.2}
 .plan-ok{background:var(--gold,#DD8E0D);color:#2b0306;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;white-space:nowrap}
 .plan-cnt{margin-top:14px;padding-top:12px;border-top:1px solid #7a2a2f;display:flex;justify-content:space-between;align-items:center;gap:12px}
-.plan-cnt b{font-family:var(--font-display);font-size:30px;color:var(--gold,#DD8E0D);font-weight:600}
+.plan-cnt b{font-family:var(--font-display);font-size:28px;color:var(--gold,#DD8E0D);font-weight:600;white-space:nowrap}
+.plan-cnt b em{font-style:normal;font-size:15px;color:#E9C9A6;font-weight:400}
 .plan-cnt span{font-size:11.5px;color:#E9C9A6;line-height:1.5;text-align:right}
 .plan-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:14px}
 .plan-st{background:#390308;border-radius:12px;padding:10px 6px;text-align:center}
