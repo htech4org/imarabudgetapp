@@ -149,12 +149,12 @@ export default function MyTeam({ womanId, onError, onNotice, mentorName, data, b
                     onToggle={() => setOpenId(openId === r.w.woman_id ? null : r.w.woman_id)}
                     onMark={onMarkAttendance}
                     hasSistersConnect={sisters_connect_weekday != null}
-                    quizList={data.quizzes}
+                    quizList={(data.quizzes || []).filter((x) => x.system === 'journey')}
                   />
                 ))}
               </div>
               <p className="tm-legend">
-                Reading = days read this month · Quiz = class quizzes passed · Circle and Mastermind = times she came out of sessions held · an amber dot means some are not recorded yet · tap a name for dates
+                Reading = days read this month · Quiz = Journey quizzes passed · Circle and Mastermind = times she came out of sessions held · an amber dot means some are not recorded yet · tap a name for dates
               </p>
             </>
           )}
@@ -327,7 +327,7 @@ function TeamRow({ r, busy, open, onToggle, onMark, hasSistersConnect, quizList 
           <ClassJoins joins={w.class_joins} />
           {(data_quizzes(quizList)).length > 0 && (
             <>
-              <p className="tm-dl">Class quizzes</p>
+              <p className="tm-dl">Journey quizzes</p>
               {quizList.map((qz) => {
                 const m = (w.quizzes || []).find((x) => x.quiz_id === qz.quiz_id)
                 return (

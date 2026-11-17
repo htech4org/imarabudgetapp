@@ -860,6 +860,110 @@ function ReplayTaps({ password, refreshKey }) {
   )
 }
 
+function JourneyQuizControls({ password, onChanged }) {
+  const [list, setList] = useState(null)
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+  const [note, setNote] = useState('')
+  const [reopenId, setReopenId] = useState(null)
+  const [days, setDays] = useState(3)
+  const [extra, setExtra] = useState(true)
+
+  const load = () =>
+    rpc('imara_admin_journey_quizzes', { p_admin_password: password })
+      .then(setList).catch((e) => setError(e.message))
+  useEffect(() => { load() }, [password])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const run = async (id, fn, args, done) => {
+    setBusy(id); setError(''); setNote('')
+    try {
+      const res = await rpc(fn, { p_admin_password: password, p_quiz_id: id, ...args })
+      await load(); if (onChanged) onChanged()
+      setNote(done(res))
+    } catch (e) { setError(e.message) } finally { setBusy('') }
+  }
+  const when = (t) => new Date(t).toLocaleString('en-GB', { timeZone: 'Africa/Lagos', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+
+  if (!list) return error ? <div className="error-note" style={{ marginBottom: 12 }}>{error}</div> : null
+
+  return (
+    <div className="panel" style={{ marginBottom: 16 }}>
+      <div className="eyebrow">IMARA Journey quizzes</div>
+      <p className="small muted" style={{ margin: '4px 0 10px' }}>
+        Go live, reopen or close any Journey quiz. A quiz that is not live is hidden from the women and does not count in their score or their mentor's report.
+      </p>
+      {error && <div className="error-note" style={{ marginBottom: 10 }}>{error}</div>}
+      {note && <p className="small" style={{ marginBottom: 10, color: 'var(--green)' }}>{note}</p>}
+      <div className="stack-s" style={{ gap: 10 }}>
+        {list.map((q) => {
+          const state = !q.live ? 'Not live' : q.closed ? 'Closed' : 'Open'
+          return (
+            <div key={q.quiz_id} style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+              <div className="row-between">
+                <div>
+                  <b className="small">{q.short_title}: {q.title}</b>
+                  <div className="tiny muted">
+                    {q.questions} questions · {q.taken} taken · {q.passed} passed
+                    {q.live && q.closes_at ? ` · ${q.closed ? 'closed' : 'closes'} ${when(q.closes_at)}` : ''}
+                  </div>
+                </div>
+                <span className={`tag ${state === 'Open' ? 'tag-good' : 'tag-unassigned'}`}>{state}</span>
+              </div>
+              <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                {!q.live && (
+                  <button className="btn btn-clay btn-sm" disabled={!!busy}
+                    onClick={() => {
+                      if (window.confirm(`Make "${q.title}" live now? Every woman with access will see it straight away.`))
+                        run(q.quiz_id, 'imara_admin_quiz_go_live', {}, (r) => `Live now. Closes ${when(r.closes_at)}.`)
+                    }}>
+                    {busy === q.quiz_id ? 'Going live…' : 'Go live now'}
+                  </button>
+                )}
+                {q.live && !q.closed && (
+                  <button className="btn btn-soft btn-sm" disabled={!!busy}
+                    onClick={() => {
+                      if (window.confirm(`Close "${q.title}" now?`))
+                        run(q.quiz_id, 'imara_admin_quiz_close', {}, () => 'Closed.')
+                    }}>
+                    Close now
+                  </button>
+                )}
+                {q.live && (
+                  <button className={`btn btn-sm ${reopenId === q.quiz_id ? 'btn-clay' : 'btn-soft'}`} disabled={!!busy}
+                    onClick={() => setReopenId(reopenId === q.quiz_id ? null : q.quiz_id)}>
+                    {q.closed ? 'Reopen' : 'Extend'}
+                  </button>
+                )}
+              </div>
+              {reopenId === q.quiz_id && (
+                <div style={{ marginTop: 10, padding: 10, background: 'var(--cream, #faf3ea)', borderRadius: 10 }}>
+                  <p className="small" style={{ margin: '0 0 8px' }}>
+                    Open for{' '}
+                    <select value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ padding: '4px 6px' }}>
+                      {[1, 2, 3, 5, 7, 14].map((d) => <option key={d} value={d}>{d} day{d === 1 ? '' : 's'}</option>)}
+                    </select>
+                    {' '}from today, closing 11:59pm Lagos time.
+                  </p>
+                  <label className="small" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10 }}>
+                    <input type="checkbox" checked={extra} onChange={(e) => setExtra(e.target.checked)} style={{ marginTop: 3 }} />
+                    <span>Also give one more try to women who used all their tries and have not passed</span>
+                  </label>
+                  <button className="btn btn-clay btn-sm" disabled={!!busy}
+                    onClick={() => run(q.quiz_id, 'imara_admin_quiz_reopen', { p_days: days, p_extra_try: extra },
+                      (r) => `Open until ${when(r.closes_at)}.${extra ? ` ${r.extra_given} woman${r.extra_given === 1 ? '' : 'en'} got one more try.` : ''}`)
+                      .then(() => setReopenId(null))}>
+                    {busy === q.quiz_id ? 'Saving…' : (q.closed ? 'Reopen quiz' : 'Extend quiz')}
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function QuizTab({ password }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
@@ -888,6 +992,7 @@ function QuizTab({ password }) {
 
   return (
     <div className="admin">
+      <JourneyQuizControls password={password} onChanged={load} />
       {error && <div className="error-note" style={{ marginBottom: 12 }}>{error}</div>}
       {note && <p className="small" style={{ marginBottom: 12, color: 'var(--green)' }}>{note}</p>}
       {data.length === 0 && <p className="small muted">No quizzes yet.</p>}
