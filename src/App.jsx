@@ -631,6 +631,7 @@ export default function App() {
     return (
       <>
         <FreeHome
+          womanId={womanId}
           firstName={state.woman.first_name?.toLowerCase()}
           info={freeInfo}
           renewalInfo={renewalInfo}
