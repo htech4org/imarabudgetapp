@@ -17,6 +17,7 @@ import { money } from '../lib/format'
 import { WeekBars, scoreColor } from '../components/WeekBars'
 import { A as MIRROR } from '../lib/mirror'
 import { rpc } from '../lib/supabase'
+import PlanCard from '../components/PlanCard'
 
 // "ada" / "ADA" / "mary jane" -> "Ada" / "Mary Jane"
 export const properName = (s) =>
@@ -51,6 +52,14 @@ export default function Home({
   const [confirmRec, setConfirmRec] = useState(false)
   // The Journey leaderboard tile shows only while the leaderboard is open (database decides).
   const [lbOpen, setLbOpen] = useState(false)
+  // Her 20-year plan: undefined while loading, null if it could not load (then the old money card shows).
+  const [plan, setPlan] = useState(undefined)
+  useEffect(() => {
+    if (!womanId) return undefined
+    let off = false
+    rpc('imara_plan_status', { p_woman_id: womanId }).then((v) => { if (!off) setPlan(v) }).catch(() => { if (!off) setPlan(null) })
+    return () => { off = true }
+  }, [womanId])
   useEffect(() => {
     if (!womanId || !onSelectLeaderboard) return undefined
     let off = false
@@ -114,7 +123,8 @@ export default function Home({
           )
         })()}
 
-        {/* ---------------- saved + invested ---------------- */}
+        {/* ---------------- her 20-year plan (replaces the old money card) ---------------- */}
+        {plan !== null ? <PlanCard plan={plan} /> : (
         <div className="home-card">
           <div className="home-lbl" style={{ marginBottom: 10 }}>This month so far</div>
           {!m ? (
@@ -140,6 +150,7 @@ export default function Home({
             </>
           )}
         </div>
+        )}
 
         {/* ---------------- reading ---------------- */}
         <ReadingCard reading={reading} onContinue={onContinueReading} onOpen={onSelectReading} />
