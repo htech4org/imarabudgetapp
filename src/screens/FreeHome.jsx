@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react'
 import { CSS, properName } from './Home'
+import { rpc } from '../lib/supabase'
+import { FreePlanCard } from '../components/PlanCard'
 import { A } from '../lib/mirror'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -15,8 +18,15 @@ const long = (iso) => (iso ? `${Number(iso.slice(8, 10))} ${LONG[Number(iso.slic
  *   renewalInfo  imara_renewal_info result: her payment link
  */
 export default function FreeHome({
-  firstName, info, renewalInfo, busy, onMirror, onBudget, onCheckAgain, onSignOut,
+  firstName, womanId, info, renewalInfo, busy, onMirror, onBudget, onCheckAgain, onSignOut,
 }) {
+  const [planCount, setPlanCount] = useState(null)
+  useEffect(() => {
+    if (!womanId) return undefined
+    let off = false
+    rpc('imara_plan_free', { p_woman_id: womanId }).then((v) => { if (!off) setPlanCount(v) }).catch(() => {})
+    return () => { off = true }
+  }, [womanId])
   const name = properName(firstName)
   const past = Boolean(info?.ever_paid)
   const phase = info?.pay_phase
@@ -47,6 +57,9 @@ export default function FreeHome({
       </div>
 
       <div className="home-body">
+        {/* ---------------- the 20-year plan ---------------- */}
+        <FreePlanCard counter={planCount} />
+
         {/* ---------------- upgrade card ---------------- */}
         <div style={{ background: 'linear-gradient(120deg,var(--clay),var(--wine))', color: '#fff', borderRadius: 18, padding: '15px 16px' }}>
           {!info ? (
