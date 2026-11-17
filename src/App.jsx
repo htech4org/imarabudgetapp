@@ -14,6 +14,7 @@ import ReadingHome from './screens/reading/ReadingHome'
 import ChapterView from './screens/reading/ChapterView'
 import MyTeam from './screens/MyTeam'
 import FreeHome from './screens/FreeHome'
+import JourneyLeaderboardScreen from './screens/JourneyLeaderboardScreen'
 import Mirror from './screens/Mirror'
 import Journey from './screens/Journey'
 import Toolkit from './screens/Toolkit'
@@ -664,6 +665,8 @@ export default function App() {
           reading={homeReading}
           renewal={homeRenewal}
           replay={homeReplay}
+          womanId={womanId}
+          onSelectLeaderboard={() => setAppChoice('leaderboard')}
           onContinueReading={continueReading}
           onSelectBudget={() => setAppChoice('budget')}
           onSelectReading={() => setAppChoice('reading')}
@@ -700,6 +703,16 @@ export default function App() {
       <>
         {homeBar}
         <Mirror saved={freeInfo?.mirror} isPaid onSave={saveMirror} onSignOut={signOut} />
+        {toastEl}
+      </>
+    )
+  }
+
+  if (appChoice === 'leaderboard') {
+    return (
+      <>
+        {homeBar}
+        <JourneyLeaderboardScreen womanId={womanId} />
         {toastEl}
       </>
     )

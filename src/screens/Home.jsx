@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CREED } from '../lib/constants'
 
 // Foundation Arc classes have ended. Set to true to show its Tuesday link again.
@@ -16,6 +16,7 @@ const replayTime = (t) => {
 import { money } from '../lib/format'
 import { WeekBars, scoreColor } from '../components/WeekBars'
 import { A as MIRROR } from '../lib/mirror'
+import { rpc } from '../lib/supabase'
 
 // "ada" / "ADA" / "mary jane" -> "Ada" / "Mary Jane"
 export const properName = (s) =>
@@ -45,9 +46,17 @@ const lagosNow = () => {
 export default function Home({
   firstName, isMentor, dayOfMonth, daysInMonth, monthName, money: m, reading, renewal,
   onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading, leaderHome, onSelectLeader, assistantInfo, onSelectAssist, recruiter, onSelectRecruiter, onRegisterRecruiter,
-  journey, onSelectJourney, mirror, onSelectMirror, replay,
+  journey, onSelectJourney, mirror, onSelectMirror, replay, womanId, onSelectLeaderboard,
 }) {
   const [confirmRec, setConfirmRec] = useState(false)
+  // The Journey leaderboard tile shows only while the leaderboard is open (database decides).
+  const [lbOpen, setLbOpen] = useState(false)
+  useEffect(() => {
+    if (!womanId || !onSelectLeaderboard) return undefined
+    let off = false
+    rpc('imara_journey_leaderboard_open', { p_woman_id: womanId }).then((v) => { if (!off) setLbOpen(v === true) }).catch(() => {})
+    return () => { off = true }
+  }, [womanId]) // eslint-disable-line react-hooks/exhaustive-deps
   const [recBusy, setRecBusy] = useState(false)
   const { hour, day, isTuesday: isTuesdayRaw } = lagosNow()
   const isRestream = !!replay?.on
@@ -265,6 +274,12 @@ export default function Home({
             <button type="button" className="home-tile" onClick={onSelectMirror}>
               <span className="home-ic">🪞</span>
               <span><b>financial mirror</b><small>{mirror && MIRROR[mirror.k] ? `Your result: ${MIRROR[mirror.k].name}` : 'Takes 5 minutes'}</small></span>
+            </button>
+          )}
+          {lbOpen && onSelectLeaderboard && (
+            <button type="button" className="home-tile" onClick={onSelectLeaderboard}>
+              <span className="home-ic">🏆</span>
+              <span><b>journey leaderboard</b><small>Top teams and Imarians</small></span>
             </button>
           )}
           {assistantInfo?.is_assistant && onSelectAssist && (
