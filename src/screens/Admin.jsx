@@ -588,18 +588,119 @@ function RecordingStatus({ password }) {
 // Subscription access: who has paid, who is exempt, the master lock, and the
 // three links. Owns the fetching; AccessConsole is purely presentational.
 // Action errors are thrown back to AccessConsole, which shows them.
+// ---------------------------------------------------------------------------
+// Teams for the Attendance tab: the Trybe Leader with her mentors, then every
+// mentor with her team, then women with no mentor. Same shape as the Journey tab.
+// ---------------------------------------------------------------------------
+function buildTeams(roster) {
+  const leaders = roster.filter((r) => r.is_trybe_leader)
+  const mentors = roster.filter((r) => r.is_mentor && !r.is_trybe_leader)
+  const out = []
+  leaders.forEach((l) => {
+    const mine = mentors.filter((m) => m.mentor_id === l.woman_id)
+    if (mine.length) out.push({ key: `leader-${l.woman_id}`, title: `${l.first_name} · Trybe Leader`, head: l, isLeader: true, members: mine })
+  })
+  mentors.forEach((m) => {
+    const members = roster.filter((r) => r.mentor_id === m.woman_id && r.woman_id !== m.woman_id)
+    if (members.length) out.push({ key: m.woman_id, title: `${m.first_name}'s team`, head: m, members })
+  })
+  const loose = roster.filter((r) => !r.mentor_id && !r.is_mentor && !r.is_trybe_leader)
+  if (loose.length) out.push({ key: 'none', title: 'No mentor yet', head: null, members: loose, noHead: true })
+  return out
+}
+
+// One card per team: "7 of 10", a bar, and her women with how each did.
+// statusOf(woman) -> { kind: 'yes' | 'maybe' | 'no', text }
+function TeamAttendance({ roster, statusOf, verb, query, extra }) {
+  const [open, setOpen] = useState({})
+  const q = (query || '').trim().toLowerCase()
+  const teams = useMemo(() => buildTeams(roster), [roster])
+  const cards = teams.map((t) => {
+    const rows = [...(t.head && !t.isLeader ? [t.head] : []), ...(t.isLeader ? [t.head] : []), ...t.members]
+      .map((w) => ({ w, st: statusOf(w) }))
+    const counted = rows.filter((r) => !(t.isLeader && r.w === t.head))   // leader's own row is shown, not counted in her mentors' share
+    const yes = counted.filter((r) => r.st.kind === 'yes').length
+    const total = counted.length
+    return { t, rows, yes, total, share: total ? yes / total : 1 }
+  }).map((c) => ({ ...c, shown: q ? c.rows.filter((r) => (r.w.first_name || '').toLowerCase().includes(q) || (r.w.mentor_name || '').toLowerCase().includes(q)) : c.rows }))
+    .filter((c) => c.shown.length > 0)
+  const pinned = cards.filter((c) => c.t.isLeader)
+  const rest = cards.filter((c) => !c.t.isLeader).sort((a, b) => a.share - b.share || b.total - a.total)
+  const order = { no: 0, maybe: 1, yes: 2 }
+  const colour = (k) => (k === 'yes' ? { bg: '#DDF3E8', fg: '#1f7a55' } : k === 'maybe' ? { bg: '#FCEBD3', fg: '#8a5a12' } : { bg: '#FFD9DF', fg: 'var(--wine)' })
+
+  return (
+    <div>
+      <div className="row-between" style={{ marginBottom: 8, alignItems: 'center' }}>
+        <span className="tiny muted">Teams with the fewest {verb} come first. Tap a team to open it.</span>
+        <button type="button" className="btn-link" onClick={() => {
+          const allOpen = [...pinned, ...rest].every((c) => open[c.t.key])
+          const next = {}
+          ;[...pinned, ...rest].forEach((c) => { next[c.t.key] = !allOpen })
+          setOpen(next)
+        }}>{[...pinned, ...rest].every((c) => open[c.t.key]) ? 'Close all' : 'Open all'}</button>
+      </div>
+      {[...pinned, ...rest].map((c) => {
+        const isOpen = open[c.t.key] ?? false
+        const pct = Math.round(c.share * 100)
+        const bar = pct >= 70 ? '#59BA8E' : pct >= 40 ? '#F2C46B' : '#F3A0B0'
+        const sorted = [...c.shown].sort((a, b) => {
+          const head = (r) => (r.w === c.t.head ? -1 : 0)
+          return head(a) - head(b) || order[a.st.kind] - order[b.st.kind] || String(a.w.first_name).localeCompare(b.w.first_name)
+        })
+        return (
+          <div key={c.t.key} className="card" style={{ marginBottom: 10, padding: 12 }}>
+            <button type="button" onClick={() => setOpen({ ...open, [c.t.key]: !isOpen })}
+              style={{ all: 'unset', display: 'block', width: '100%', cursor: 'pointer' }}>
+              <div className="row-between" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
+                <b style={{ fontSize: 13.5 }}>{c.t.title}</b>
+                <span className="tiny muted">{c.yes} of {c.total} {verb} · {pct}% {isOpen ? '▲' : '▼'}</span>
+              </div>
+              <div style={{ height: 6, borderRadius: 9, background: 'var(--surface-2)', overflow: 'hidden', marginTop: 6 }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: bar, borderRadius: 9 }} />
+              </div>
+            </button>
+            {isOpen && (
+              <div style={{ marginTop: 10 }}>
+                {sorted.map(({ w, st }) => {
+                  const col = colour(st.kind)
+                  return (
+                    <div key={w.woman_id} className="row-between" style={{ gap: 8, padding: '6px 0', borderTop: '1px solid var(--line)', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13 }}>
+                        <b style={{ fontWeight: 600 }}>{w.first_name}</b>
+                        {w === c.t.head && <span className="tiny muted"> {c.t.isLeader ? '(Trybe Leader)' : '(mentor)'}</span>}
+                      </span>
+                      <span style={{ fontSize: 11.5, fontWeight: 600, padding: '3px 10px', borderRadius: 99, background: col.bg, color: col.fg, whiteSpace: 'nowrap' }}>{st.text}</span>
+                    </div>
+                  )
+                })}
+                {extra ? extra(c) : null}
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {cards.length === 0 && <p className="small muted">No matches.</p>}
+    </div>
+  )
+}
+
 // Attendance logs: who tapped a Tuesday class link, and whether each mentor
 // has recorded attendance for her team.
 function AttendanceTab({ password }) {
   const [rk, setRk] = useState(0)
+  const [roster, setRoster] = useState(null)
+  useEffect(() => {
+    rpc('imara_admin_roster', { p_admin_password: password }).then(setRoster).catch(() => setRoster(null))
+  }, [password])
   return (
     <div className="admin">
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, alignItems: 'start' }}>
-        <ClassTaps password={password} />
+        <ClassTaps password={password} roster={roster} />
         <RecordingStatus password={password} />
       </div>
       <ReplaySettings password={password} onSaved={() => setRk((n) => n + 1)} />
-      <ReplayTaps password={password} refreshKey={rk} />
+      <ReplayTaps password={password} refreshKey={rk} roster={roster} />
       <p className="tiny faint center" style={{ marginTop: 30 }}>
         © IMARA Wealth Trybe · Leading Ladies Foundation
       </p>
@@ -609,7 +710,8 @@ function AttendanceTab({ password }) {
 
 // A tap between 7:50pm and 10pm Lagos time counts as joined (taps before 8pm
 // are labelled early). Anything else that day is only counted, with its time.
-function ClassTaps({ password }) {
+function ClassTaps({ password, roster }) {
+  const [view, setView] = useState('team')   // 'team' | 'list'
   const [date, setDate] = useState('')          // '' = latest Tuesday
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
@@ -627,6 +729,7 @@ function ClassTaps({ password }) {
   const rows = data?.rows || []
   const q = search.trim().toLowerCase()
   const shown = rows.filter((r) => !q || (r.first_name || '').toLowerCase().includes(q) || (r.mentor_name || '').toLowerCase().includes(q))
+  const byWoman = Object.fromEntries(rows.map((r) => [r.woman_id, r]))
   const zoom = rows.filter((r) => r.circle_at).length
   const yt = rows.filter((r) => r.foundation_at).length
   const outside = rows.filter((r) => Number(r.outside_window_taps) > 0).length
@@ -666,7 +769,31 @@ function ClassTaps({ password }) {
       )}
 
       {!error && rows.length === 0 && <p className="small muted">No taps recorded for this day.</p>}
-      {rows.length > 0 && (
+      {(rows.length > 0 || roster) && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          <button type="button" className={`btn btn-sm ${view === 'team' && roster ? 'btn-primary' : 'btn-soft'}`} onClick={() => setView('team')}>By team</button>
+          <button type="button" className={`btn btn-sm ${view === 'list' || !roster ? 'btn-primary' : 'btn-soft'}`} onClick={() => setView('list')}>All taps</button>
+        </div>
+      )}
+      {view === 'team' && roster && data && (
+        <>
+          <input className="input" placeholder="Search by woman or mentor" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 10 }} />
+          <TeamAttendance
+            roster={roster} verb="joined" query={search}
+            statusOf={(w) => {
+              const r = byWoman[w.woman_id]
+              if (r && (r.circle_at || r.foundation_at)) {
+                const where = r.circle_at ? `Zoom ${r.circle_at}` : `YouTube ${r.foundation_at}`
+                const early = r.circle_at ? r.circle_early : r.foundation_early
+                return { kind: 'yes', text: `Joined ${where}${early ? ' · early' : ''}` }
+              }
+              if (r && Number(r.outside_window_taps) > 0) return { kind: 'maybe', text: `Outside window${r.outside_at ? ` ${r.outside_at}` : ''}` }
+              return { kind: 'no', text: 'No tap' }
+            }}
+          />
+        </>
+      )}
+      {(view === 'list' || !roster) && rows.length > 0 && (
         <>
           <input className="input" placeholder="Search by woman or mentor" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 10 }} />
           <div style={{ overflowX: 'auto' }}>
@@ -789,7 +916,8 @@ function ReplaySettings({ password, onSaved }) {
 
 // Replay attendance. A tap on "Watch the replay" is the record: it shows she
 // tried to watch, not that she stayed. Pick any past week.
-function ReplayTaps({ password, refreshKey }) {
+function ReplayTaps({ password, refreshKey, roster }) {
+  const [view, setView] = useState('team')   // 'team' | 'list'
   const [date, setDate] = useState('')          // '' = latest replay day
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
@@ -802,6 +930,7 @@ function ReplayTaps({ password, refreshKey }) {
   useEffect(() => { load() }, [refreshKey]) // eslint-disable-line react-hooks/exhaustive-deps
   const rows = data?.rows || []
   const missed = data?.not_tapped || []
+  const byWoman = Object.fromEntries(rows.map((r) => [r.woman_id, r]))
   const history = data?.history || []
   const cell = { padding: '9px 8px', borderTop: '1px solid var(--line)' }
   const pick = (d) => { setDate(d); load(d) }
@@ -823,7 +952,22 @@ function ReplayTaps({ password, refreshKey }) {
       )}
       {error && <div className="error-note">{error}</div>}
       {!error && rows.length === 0 && <p className="small muted">No taps yet for this day.</p>}
-      {rows.length > 0 && (
+      {roster && data && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          <button type="button" className={`btn btn-sm ${view === 'team' ? 'btn-primary' : 'btn-soft'}`} onClick={() => setView('team')}>By team</button>
+          <button type="button" className={`btn btn-sm ${view === 'list' ? 'btn-primary' : 'btn-soft'}`} onClick={() => setView('list')}>All taps</button>
+        </div>
+      )}
+      {view === 'team' && roster && data && (
+        <TeamAttendance
+          roster={roster} verb="tapped"
+          statusOf={(w) => {
+            const r = byWoman[w.woman_id]
+            return r ? { kind: 'yes', text: `Tapped ${r.first_tap_at}${Number(r.taps) > 1 ? ` · ${r.taps} taps` : ''}` } : { kind: 'no', text: 'No tap' }
+          }}
+        />
+      )}
+      {(view === 'list' || !roster) && rows.length > 0 && (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 380 }}>
             <thead><tr style={{ textAlign: 'left' }}>
@@ -844,7 +988,7 @@ function ReplayTaps({ password, refreshKey }) {
           </table>
         </div>
       )}
-      {data && (
+      {data && (view === 'list' || !roster) && (
         <div style={{ marginTop: 14 }}>
           <button className="btn-link" onClick={() => setShowMissed((v) => !v)}>
             {showMissed ? 'Hide' : 'Show'} women who did not tap · {missed.length}
