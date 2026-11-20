@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CREED } from '../lib/constants'
-import SurveyCard from '../components/SurveyCard'
+import SurveyTile, { useSurveyOpen } from '../components/SurveyCard'
 
 // Foundation Arc classes have ended. Set to true to show its Tuesday link again.
 const FOUNDATION_ARC_ACTIVE = false
@@ -50,6 +50,7 @@ export default function Home({
   onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading, leaderHome, onSelectLeader, assistantInfo, onSelectAssist, recruiter, onSelectRecruiter, onRegisterRecruiter,
   journey, onSelectJourney, mirror, onSelectMirror, replay, womanId, onSelectLeaderboard, onSelectSurvey,
 }) {
+  const surveyOpen = useSurveyOpen(womanId) && Boolean(onSelectSurvey)
   const [confirmRec, setConfirmRec] = useState(false)
   // The Journey leaderboard tile shows only while the leaderboard is open (database decides).
   const [lbOpen, setLbOpen] = useState(false)
@@ -152,9 +153,6 @@ export default function Home({
           )}
         </div>
         )}
-
-        {/* ---------------- her story (survey) ---------------- */}
-        <SurveyCard womanId={womanId} onOpen={onSelectSurvey} />
 
         {/* ---------------- reading ---------------- */}
         <ReadingCard reading={reading} onContinue={onContinueReading} onOpen={onSelectReading} />
@@ -279,7 +277,8 @@ export default function Home({
               <span><b>class quizzes</b><small>{openQuizzes.length > 0 ? 'Did you catch it all?' : 'Opens when a quiz is live'}</small></span>
             </button>
           )}
-          {recruiter?.tile && onSelectRecruiter && (
+          {surveyOpen && <SurveyTile onOpen={onSelectSurvey} />}
+          {!surveyOpen && recruiter?.tile && onSelectRecruiter && (
             <button type="button" className="home-tile" onClick={onSelectRecruiter}>
               <span className="home-ic">🎓</span>
               <span><b>recruiter training</b><small>Fridays 7pm · starts 13 Nov</small></span>
