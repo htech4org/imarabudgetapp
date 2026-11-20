@@ -15,6 +15,7 @@ import ChapterView from './screens/reading/ChapterView'
 import MyTeam from './screens/MyTeam'
 import FreeHome from './screens/FreeHome'
 import JourneyLeaderboardScreen from './screens/JourneyLeaderboardScreen'
+import Survey from './screens/Survey'
 import Mirror from './screens/Mirror'
 import Journey from './screens/Journey'
 import Toolkit from './screens/Toolkit'
@@ -567,8 +568,9 @@ export default function App() {
   // Fire-and-forget: record that she tapped a class link. Never blocks the join.
   const logClassTap = (classKey) => {
     if (!womanId) return
-    const fn = classKey === 'replay' ? 'imara_replay_log_click' : 'imara_tuesday_log_click'
-    const args = classKey === 'replay' ? { p_woman_id: womanId } : { p_woman_id: womanId, p_class: classKey }
+    const isReplay = classKey === 'replay' || classKey === 'replay2'
+    const fn = isReplay ? 'imara_replay_log_click' : 'imara_tuesday_log_click'
+    const args = isReplay ? { p_woman_id: womanId, p_which: classKey === 'replay2' ? 2 : 1 } : { p_woman_id: womanId, p_class: classKey }
     rpc(fn, args).catch(() => {})
   }
 
@@ -668,6 +670,7 @@ export default function App() {
           replay={homeReplay}
           womanId={womanId}
           onSelectLeaderboard={() => setAppChoice('leaderboard')}
+          onSelectSurvey={() => setAppChoice('survey')}
           onContinueReading={continueReading}
           onSelectBudget={() => setAppChoice('budget')}
           onSelectReading={() => setAppChoice('reading')}
@@ -704,6 +707,16 @@ export default function App() {
       <>
         {homeBar}
         <Mirror saved={freeInfo?.mirror} isPaid onSave={saveMirror} onSignOut={signOut} />
+        {toastEl}
+      </>
+    )
+  }
+
+  if (appChoice === 'survey') {
+    return (
+      <>
+        {homeBar}
+        <Survey womanId={womanId} onDone={() => setAppChoice(null)} />
         {toastEl}
       </>
     )

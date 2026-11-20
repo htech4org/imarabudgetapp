@@ -93,7 +93,12 @@ function RestreamCard({ replay, onJoin }) {
       <span className="tag">Replay</span>
       <p className="small" style={{ fontWeight: 700, fontSize: 15, marginTop: 10 }}>{String(replay?.title || 'The IMARA Foundation').toUpperCase()}</p>
       <p className="tiny muted" style={{ margin: '6px 0 14px', lineHeight: 1.7 }}>Replay {h >= 17 ? 'tonight' : 'today'} at {at} WAT on YouTube.</p>
-      <JoinButton href={replay?.link} label="Watch the replay" onClick={() => onJoin?.('replay')} />
+      <JoinButton href={replay?.link} label={replay?.link2 ? (replay?.label || 'Watch replay 1') : 'Watch the replay'} onClick={() => onJoin?.('replay')} />
+      {replay?.link2 && (
+        <div style={{ marginTop: 10 }}>
+          <JoinButton href={replay.link2} label={replay.label2 || 'Watch replay 2'} onClick={() => onJoin?.('replay2')} />
+        </div>
+      )}
     </div>
   )
 }

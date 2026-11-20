@@ -6,7 +6,7 @@ import { WeekBars, scoreColor } from '../components/WeekBars'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const fmt = (iso) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}`
 
-const ICONS = { reading: '📚', class: '🎓', quiz: '📝', mastermind: '🤝', investment: '💰' }
+const ICONS = { reading: '📚', class: '🎓', quiz: '📝', mastermind: '🤝', investment: '💰', survey: '💚' }
 
 /**
  * "My week": her score for a week of the IMARA Journey, the five activities
