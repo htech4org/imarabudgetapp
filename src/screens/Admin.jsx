@@ -124,7 +124,7 @@ function Console({ data, password, onRefresh, busy, onLock }) {
         </div>
         <div className="admin-bar-inner" style={{ paddingTop: 0, marginTop: 6 }}>
           <div className="adm-tabs">
-            {[['budget', 'Budget'], ['reading', 'Book Reading'], ['mentors', 'Mentors'], ['attendance', 'Attendance'], ['quizzes', 'Quizzes'], ['recruiters', 'Recruiters'], ['mirror', 'Mirror'], ['journey', 'Journey'], ['structure', 'Structure'], ['access', 'Access']].map(([k, label]) => (
+            {[['budget', 'Budget'], ['reading', 'Book Reading'], ['mentors', 'Mentors'], ['attendance', 'Attendance'], ['quizzes', 'Quizzes'], ['recruiters', 'Recruiters'], ['mirror', 'Mirror'], ['journey', 'Journey'], ['stories', 'Stories'], ['structure', 'Structure'], ['access', 'Access']].map(([k, label]) => (
               <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>
             ))}
           </div>
@@ -145,6 +145,8 @@ function Console({ data, password, onRefresh, busy, onLock }) {
         <MirrorTab password={password} />
       ) : tab === 'journey' ? (
         <JourneyAdminTab password={password} />
+      ) : tab === 'stories' ? (
+        <StoriesTab password={password} />
       ) : tab === 'structure' ? (
         <OrgTree password={password} />
       ) : tab === 'access' ? (
@@ -840,6 +842,75 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 
 // Weekly replay: turn it on, pick the day and time, paste the link. While it is
 // ON, women see the replay card every week on that day (Lagos time).
+// ---------------------------------------------------------------------------
+// Stories: what women said in "Your story". Only "share" answers are meant for
+// posts; the rest are for IMARA to learn from.
+// ---------------------------------------------------------------------------
+const PERM_LABEL = { name: 'OK with her name', anonymous: 'OK, anonymous', ask: 'Ask her first', private: 'Private' }
+const PERM_COLOR = { name: ['#DDF3E8', '#1f7a55'], anonymous: ['#DDF3E8', '#1f7a55'], ask: ['#FCEBD3', '#8a5a12'], private: ['#EEE', '#555'] }
+
+function StoriesTab({ password }) {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [filter, setFilter] = useState('all')   // all | share | ask
+  const [copied, setCopied] = useState('')
+  useEffect(() => {
+    rpc('imara_admin_survey_list', { p_admin_password: password }).then(setData).catch((e) => setError(e.message))
+  }, [password])
+  if (error) return <div className="admin"><div className="error-note">{error}</div></div>
+  if (!data) return <div className="admin"><p className="small muted">Loading stories…</p></div>
+  const rows = data.rows || []
+  const pct = (n) => (rows.length ? Math.round((100 * n) / rows.length) : 0)
+  const tally = (fn) => rows.filter(fn).length
+  const changed = tally((r) => ['significantly', 'somewhat'].includes(r.answers?.change))
+  const first = tally((r) => (r.answers?.steps || []).includes('first_investment'))
+  const firstHelped = tally((r) => ['knowledge', 'community', 'both'].includes(r.answers?.first_help))
+  const rated = tally((r) => ['excellent', 'very_good'].includes(r.answers?.rating))
+  const shown = rows.filter((r) => filter === 'all' || (filter === 'share' ? ['name', 'anonymous'].includes(r.permission) : r.permission === 'ask'))
+  const quoteOf = (r) => [r.since && `Since joining IMARA, I have ${r.since.replace(/^\.+\s*/, '')}`, r.milestone, r.advice].filter(Boolean).join('\n\n') + `\n\n- ${r.permission === 'name' ? (r.display_name || r.first_name) : 'An IMARA woman'}`
+  const copy = async (r) => { try { await navigator.clipboard.writeText(quoteOf(r)); setCopied(r.woman_id); setTimeout(() => setCopied(''), 1500) } catch { /* ignore */ } }
+  return (
+    <div className="admin">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 14 }}>
+        {[['Stories in', `${data.done} of ${data.paid}`], ['Rate IMARA excellent or very good', `${pct(rated)}%`], ['Say it changed how they handle money', `${pct(changed)}%`],
+          ['Made a first investment', `${first}`], ['...and say IMARA helped', `${firstHelped}`]].map(([l, v]) => (
+          <div key={l} className="panel" style={{ padding: 12 }}><div className="tiny muted">{l}</div><div style={{ fontSize: 22, fontWeight: 700 }}>{v}</div></div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+        {[['all', `All (${rows.length})`], ['share', `OK to share (${tally((r) => ['name', 'anonymous'].includes(r.permission))})`], ['ask', `Ask first (${tally((r) => r.permission === 'ask')})`]].map(([k, l]) => (
+          <button key={k} type="button" className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-soft'}`} onClick={() => setFilter(k)}>{l}</button>
+        ))}
+      </div>
+      {shown.length === 0 && <p className="small muted">Nothing here yet.</p>}
+      {shown.map((r) => {
+        const [bg, fg] = PERM_COLOR[r.permission] || PERM_COLOR.private
+        const canShare = ['name', 'anonymous'].includes(r.permission)
+        return (
+          <div key={r.woman_id} className="card" style={{ marginBottom: 10, padding: 12 }}>
+            <div className="row-between" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <b style={{ fontSize: 13.5 }}>{r.first_name}{r.mentor_name ? <span className="tiny muted"> · {r.mentor_name}'s team</span> : null}</b>
+              <span style={{ fontSize: 11.5, fontWeight: 600, padding: '3px 10px', borderRadius: 99, background: bg, color: fg }}>{PERM_LABEL[r.permission]}{r.permission === 'name' && r.display_name ? ` · ${r.display_name}` : ''}</span>
+            </div>
+            {[['Since joining', r.since], ['Milestone', r.milestone], ['To a woman thinking of joining', r.advice], ['IMARA could do better', r.improve]].filter(([, v]) => v).map(([l, v]) => (
+              <p key={l} style={{ margin: '8px 0 0', fontSize: 13.5, lineHeight: 1.5 }}><span className="tiny muted">{l}</span><br />{v}</p>
+            ))}
+            <p className="tiny muted" style={{ margin: '8px 0 0' }}>
+              {r.answers?.rating ? `Rating: ${String(r.answers.rating).replace('_', ' ')} · ` : ''}{r.answers?.change ? `Changed money habits: ${r.answers.change.replace('_', ' ')}` : ''}
+              {r.media === 'yes' ? ' · Open to photo or video' : r.media === 'maybe' ? ' · Maybe photo or video' : ''}
+            </p>
+            <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {canShare && <button type="button" className="btn-link" onClick={() => copy(r)}>{copied === r.woman_id ? 'Copied' : 'Copy quote'}</button>}
+              {r.permission === 'ask' && r.phone && <a className="btn-link" href={`https://wa.me/${String(r.phone).replace(/\D/g, '')}`} target="_blank" rel="noreferrer">Message her on WhatsApp</a>}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+const pick = (d) => ({ active: d.active, day: d.day, time: d.time, title: d.title, link: d.link, label: d.label, week: d.week, link2: d.link2, label2: d.label2, week2: d.week2 })
 function ReplaySettings({ password, onSaved }) {
   const [form, setForm] = useState(null)
   const [live, setLive] = useState(false)
@@ -847,8 +918,8 @@ function ReplaySettings({ password, onSaved }) {
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
   useEffect(() => {
-    rpc('imara_admin_replay_get', { p_admin_password: password })
-      .then((d) => { setForm({ active: d.active, day: d.day, time: d.time, title: d.title, link: d.link }); setLive(d.live_now) })
+    rpc('imara_admin_replay_get2', { p_admin_password: password })
+      .then((d) => { setForm(pick(d)); setLive(d.live_now) })
       .catch((e) => setError(e.message))
   }, [password])
   if (!form) return <div className="panel" style={{ marginTop: 16 }}>{error ? <div className="error-note">{error}</div> : <p className="small muted">Loading replay settings…</p>}</div>
@@ -857,11 +928,12 @@ function ReplaySettings({ password, onSaved }) {
     const f = { ...form, ...next }
     setBusy(true); setError(''); setNote('')
     try {
-      const d = await rpc('imara_admin_replay_set', {
+      const d = await rpc('imara_admin_replay_set2', {
         p_admin_password: password, p_active: f.active, p_day: Number(f.day),
-        p_time: f.time, p_title: f.title, p_link: f.link,
+        p_time: f.time, p_title: f.title, p_link: f.link, p_label: f.label, p_week: f.week,
+        p_link2: f.link2, p_label2: f.label2, p_week2: f.week2,
       })
-      setForm({ active: d.active, day: d.day, time: d.time, title: d.title, link: d.link })
+      setForm(pick(d))
       setLive(d.live_now)
       setNote(d.active ? `Saved. The replay shows every ${DAYS[d.day]}.` : 'Saved. The replay is off.')
       onSaved?.()
@@ -882,6 +954,32 @@ function ReplaySettings({ password, onSaved }) {
         <label className="label">Replay link (YouTube)</label>
         <input className="input" placeholder="https://youtu.be/…" value={form.link} onChange={(e) => set('link', e.target.value)} />
       </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div className="field" style={{ flex: 2, minWidth: 160 }}>
+          <label className="label">Button name (only if there are two)</label>
+          <input className="input" placeholder="Watch Week 1 replay" value={form.label} onChange={(e) => set('label', e.target.value)} />
+        </div>
+        <div className="field" style={{ flex: 1, minWidth: 110 }}>
+          <label className="label">Counts for Journey week</label>
+          <input className="input" inputMode="numeric" placeholder="1" value={form.week} onChange={(e) => set('week', e.target.value.replace(/\D/g, ''))} />
+        </div>
+      </div>
+      <div className="field">
+        <label className="label">Second replay link (optional)</label>
+        <input className="input" placeholder="https://youtu.be/…" value={form.link2} onChange={(e) => set('link2', e.target.value)} />
+      </div>
+      {form.link2 && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div className="field" style={{ flex: 2, minWidth: 160 }}>
+            <label className="label">Second button name</label>
+            <input className="input" placeholder="Watch Week 3 replay" value={form.label2} onChange={(e) => set('label2', e.target.value)} />
+          </div>
+          <div className="field" style={{ flex: 1, minWidth: 110 }}>
+            <label className="label">Counts for Journey week</label>
+            <input className="input" inputMode="numeric" placeholder="3" value={form.week2} onChange={(e) => set('week2', e.target.value.replace(/\D/g, ''))} />
+          </div>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <div className="field" style={{ flex: 1, minWidth: 140 }}>
           <label className="label">Day</label>

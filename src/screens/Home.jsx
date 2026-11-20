@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CREED } from '../lib/constants'
+import SurveyCard from '../components/SurveyCard'
 
 // Foundation Arc classes have ended. Set to true to show its Tuesday link again.
 const FOUNDATION_ARC_ACTIVE = false
@@ -47,7 +48,7 @@ const lagosNow = () => {
 export default function Home({
   firstName, isMentor, dayOfMonth, daysInMonth, monthName, money: m, reading, renewal,
   onSelectBudget, onSelectReading, onSelectTeam, onSelectToolkit, onSelectTuesday, onSelectQuiz, quizzes, onContinueReading, leaderHome, onSelectLeader, assistantInfo, onSelectAssist, recruiter, onSelectRecruiter, onRegisterRecruiter,
-  journey, onSelectJourney, mirror, onSelectMirror, replay, womanId, onSelectLeaderboard,
+  journey, onSelectJourney, mirror, onSelectMirror, replay, womanId, onSelectLeaderboard, onSelectSurvey,
 }) {
   const [confirmRec, setConfirmRec] = useState(false)
   // The Journey leaderboard tile shows only while the leaderboard is open (database decides).
@@ -151,6 +152,9 @@ export default function Home({
           )}
         </div>
         )}
+
+        {/* ---------------- her story (survey) ---------------- */}
+        <SurveyCard womanId={womanId} onOpen={onSelectSurvey} />
 
         {/* ---------------- reading ---------------- */}
         <ReadingCard reading={reading} onContinue={onContinueReading} onOpen={onSelectReading} />
