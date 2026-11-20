@@ -1,31 +1,36 @@
 import { useEffect, useState } from 'react'
 import { rpc } from '../lib/supabase'
 
-/**
- * Home card: "What has IMARA changed for you?" Shows for every paid woman until she
- * has shared her story. There is no "Not now": the card simply stays until she does it.
- * After she has finished, it is gone (she can still update her story from the Survey screen).
- */
-export default function SurveyCard({ womanId, onOpen }) {
-  const [st, setSt] = useState(null)
+/** Is "Your story" open for her? True only for a paid woman who has not finished it yet. */
+export function useSurveyOpen(womanId) {
+  const [open, setOpen] = useState(false)
   useEffect(() => {
     if (!womanId) return undefined
     let off = false
-    rpc('imara_survey_state', { p_woman_id: womanId }).then((v) => { if (!off) setSt(v) }).catch(() => {})
+    rpc('imara_survey_state', { p_woman_id: womanId })
+      .then((v) => { if (!off) setOpen(Boolean(v?.eligible && !v?.done)) })
+      .catch(() => {})
     return () => { off = true }
   }, [womanId])
-  if (!st || !st.eligible || st.done || !onOpen) return null
+  return open
+}
+
+/**
+ * Home tile: "your story". It sits in the tile grid, in colour so it stands out from the
+ * plain tiles. There is no "Not now": it stays until she has finished the survey.
+ */
+export default function SurveyTile({ onOpen }) {
   return (
-    <div className="home-card" style={{ background: 'var(--maroon-900, #4C050B)', color: '#FBEFE6' }}>
-      <div style={{ fontSize: 10.5, letterSpacing: '.14em', fontWeight: 700, color: '#DD8E0D' }}>YOUR STORY</div>
-      <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.25, margin: '6px 0 4px' }}>What has IMARA changed for you?</div>
-      <p style={{ fontSize: 13, lineHeight: 1.5, color: '#E9C9CC', margin: '0 0 12px' }}>
-        A few taps and a few lines in your own words. About 4 minutes. Finish it and your Journey week gets a 20 point bonus.
-      </p>
-      <button type="button" onClick={onOpen}
-        style={{ border: 0, cursor: 'pointer', background: '#DD8E0D', color: '#4C050B', fontWeight: 700, fontSize: 14, padding: '11px 20px', borderRadius: 99 }}>
-        Share your story
-      </button>
-    </div>
+    <button type="button" className="home-tile" onClick={onOpen}
+      style={{ background: 'var(--maroon-900, #4C050B)', border: '1px solid var(--maroon-900, #4C050B)', position: 'relative' }}>
+      <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <span className="home-ic" style={{ background: '#DD8E0D', color: '#4C050B' }}>💚</span>
+        <span style={{ background: '#DD8E0D', color: '#4C050B', fontSize: 11, fontWeight: 700, padding: '4px 9px', borderRadius: 99 }}>+20 pts</span>
+      </span>
+      <span>
+        <b style={{ color: '#FBEFE6' }}>your story</b>
+        <small style={{ color: '#E9C9CC' }}>What has IMARA changed? 4 minutes</small>
+      </span>
+    </button>
   )
 }
