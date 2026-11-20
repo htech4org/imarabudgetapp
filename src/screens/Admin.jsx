@@ -877,6 +877,9 @@ function StoriesTab({ password }) {
           <div key={l} className="panel" style={{ padding: 12 }}><div className="tiny muted">{l}</div><div style={{ fontSize: 22, fontWeight: 700 }}>{v}</div></div>
         ))}
       </div>
+      <p className="tiny muted" style={{ margin: '0 0 12px' }}>
+        Age: {['18-24', '25-34', '35-44', '45-54', '55+'].map((g) => `${g} (${tally((r) => r.answers?.age === g)})`).join(' · ')}
+      </p>
       <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
         {[['all', `All (${rows.length})`], ['share', `OK to share (${tally((r) => ['name', 'anonymous'].includes(r.permission))})`], ['ask', `Ask first (${tally((r) => r.permission === 'ask')})`]].map(([k, l]) => (
           <button key={k} type="button" className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-soft'}`} onClick={() => setFilter(k)}>{l}</button>
@@ -896,7 +899,7 @@ function StoriesTab({ password }) {
               <p key={l} style={{ margin: '8px 0 0', fontSize: 13.5, lineHeight: 1.5 }}><span className="tiny muted">{l}</span><br />{v}</p>
             ))}
             <p className="tiny muted" style={{ margin: '8px 0 0' }}>
-              {r.answers?.rating ? `Rating: ${String(r.answers.rating).replace('_', ' ')} · ` : ''}{r.answers?.change ? `Changed money habits: ${r.answers.change.replace('_', ' ')}` : ''}
+              {r.answers?.age && r.answers.age !== 'skip' ? `Age ${r.answers.age} · ` : ''}{r.answers?.rating ? `Rating: ${String(r.answers.rating).replace('_', ' ')} · ` : ''}{r.answers?.change ? `Changed money habits: ${r.answers.change.replace('_', ' ')}` : ''}
               {r.media === 'yes' ? ' · Open to photo or video' : r.media === 'maybe' ? ' · Maybe photo or video' : ''}
             </p>
             <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>

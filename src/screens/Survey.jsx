@@ -30,6 +30,8 @@ const TAPS = [
   { key: 'books', section: 'Your growth', q: 'How has the book reading influenced you?', type: 'one', other: true,
     opts: [['mindset', 'It has changed how I think about money and wealth'], ['concepts', 'It helped me understand financial concepts better'],
            ['practical', 'It encouraged me to take practical steps'], ['habit', 'It improved my reading and learning habits'], ['not_yet', 'I have not taken part consistently yet']] },
+  { key: 'age', section: 'About you', q: 'Which age range are you in?', hint: 'This helps us understand who IMARA is reaching. It is never shown with your story.', type: 'one',
+    opts: [['18-24', '18 to 24'], ['25-34', '25 to 34'], ['35-44', '35 to 44'], ['45-54', '45 to 54'], ['55+', '55 and above'], ['skip', 'I would rather not say']] },
 ]
 
 const WORDS = [
