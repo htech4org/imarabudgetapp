@@ -849,6 +849,39 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 const PERM_LABEL = { name: 'OK with her name', anonymous: 'OK, anonymous', ask: 'Ask her first', private: 'Private' }
 const PERM_COLOR = { name: ['#DDF3E8', '#1f7a55'], anonymous: ['#DDF3E8', '#1f7a55'], ask: ['#FCEBD3', '#8a5a12'], private: ['#EEE', '#555'] }
 
+const SV_LABELS = {
+  tenure: ['How long in IMARA', { lt1: 'Less than a month', '1-3': '1 to 3 months', '4-6': '4 to 6 months', '6+': 'More than 6 months' }],
+  rating: ['Experience', { excellent: 'Excellent', very_good: 'Very good', good: 'Good', fair: 'Fair', finding_feet: 'Still finding her feet' }],
+  valuable: ['Most valuable', { learning: 'Learning sessions', reading: 'Book reading and quizzes', circle: 'IMARA Circle', savings: 'Savings and investment activities', mentorship: 'Mentorship and mastermind', trybe: 'Trybe community', accountability: 'Accountability and weekly activities', app: 'The app and resources' }],
+  change: ['Changed how she handles money', { significantly: 'Yes, significantly', somewhat: 'Yes, somewhat', little: 'A little', not_yet: 'Not yet' }],
+  steps: ['Steps taken since joining', { first_investment: 'First-ever investment', consistent_investing: 'Investing more consistently', savings_habit: 'Savings habit', budget: 'Budget or intentional spending', goals: 'Set financial goals', tracking: 'Tracking finances', understanding: 'Understands investing better', none: 'None yet' }],
+  first_help: ['IMARA helped her first investment', { knowledge: 'Yes, knowledge and confidence', community: 'Yes, the community', both: 'Yes, learning and accountability', before: 'Had invested before IMARA' }],
+  books: ['Book reading', { mindset: 'Changed how she thinks about money', concepts: 'Understands concepts better', practical: 'Took practical steps', habit: 'Better reading habits', not_yet: 'Not consistent yet', other: 'Something else' }],
+  age: ['Age range', {}],
+}
+const MEDIA_LABEL = { yes: 'Yes', maybe: 'Maybe, wants to know more', no: 'No' }
+
+function AllAnswers({ a, media }) {
+  const [open, setOpen] = useState(false)
+  const rows = Object.entries(SV_LABELS).map(([k, [label, map]]) => {
+    const v = a[k]
+    if (v == null || (Array.isArray(v) && !v.length)) return null
+    const one = (x) => (map[x] || (x === 'skip' ? 'Prefers not to say' : x))
+    const text = Array.isArray(v) ? v.map(one).join(', ') : (k === 'books' && v === 'other' && a.books_other ? `Other: ${a.books_other}` : one(v))
+    return [label, text]
+  }).filter(Boolean)
+  if (media) rows.push(['Photo or video', MEDIA_LABEL[media] || media])
+  if (!rows.length) return null
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button type="button" className="btn-link" onClick={() => setOpen(!open)}>{open ? 'Hide all answers' : 'All answers'}</button>
+      {open && rows.map(([l, t]) => (
+        <p key={l} style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.45 }}><span className="tiny muted">{l}</span><br />{t}</p>
+      ))}
+    </div>
+  )
+}
+
 function StoriesTab({ password }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
@@ -867,7 +900,8 @@ function StoriesTab({ password }) {
   const firstHelped = tally((r) => ['knowledge', 'community', 'both'].includes(r.answers?.first_help))
   const rated = tally((r) => ['excellent', 'very_good'].includes(r.answers?.rating))
   const shown = rows.filter((r) => filter === 'all' || (filter === 'share' ? ['name', 'anonymous'].includes(r.permission) : r.permission === 'ask'))
-  const quoteOf = (r) => [r.since && `Since joining IMARA, I have ${r.since.replace(/^\.+\s*/, '')}`, r.milestone, r.advice].filter(Boolean).join('\n\n') + `\n\n- ${r.permission === 'name' ? (r.display_name || r.first_name) : 'An IMARA woman'}`
+  const long = (v) => (v || '').trim().length >= 15
+  const quoteOf = (r) => [long(r.since) && `Since joining IMARA, I have ${r.since.trim().replace(/^\.+\s*/, '')}`, long(r.milestone) && r.milestone.trim(), long(r.advice) && r.advice.trim()].filter(Boolean).join('\n\n') + `\n\n- ${r.permission === 'name' ? (r.display_name || r.first_name) : 'An IMARA woman'}`
   const copy = async (r) => { try { await navigator.clipboard.writeText(quoteOf(r)); setCopied(r.woman_id); setTimeout(() => setCopied(''), 1500) } catch { /* ignore */ } }
   return (
     <div className="admin">
@@ -902,6 +936,7 @@ function StoriesTab({ password }) {
               {r.answers?.age && r.answers.age !== 'skip' ? `Age ${r.answers.age} · ` : ''}{r.answers?.rating ? `Rating: ${String(r.answers.rating).replace('_', ' ')} · ` : ''}{r.answers?.change ? `Changed money habits: ${r.answers.change.replace('_', ' ')}` : ''}
               {r.media === 'yes' ? ' · Open to photo or video' : r.media === 'maybe' ? ' · Maybe photo or video' : ''}
             </p>
+            <AllAnswers a={r.answers || {}} media={r.media} />
             <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               {canShare && <button type="button" className="btn-link" onClick={() => copy(r)}>{copied === r.woman_id ? 'Copied' : 'Copy quote'}</button>}
               {r.permission === 'ask' && r.phone && <a className="btn-link" href={`https://wa.me/${String(r.phone).replace(/\D/g, '')}`} target="_blank" rel="noreferrer">Message her on WhatsApp</a>}
